@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Miku_AI</string>
+    <string name="channel_id">screen_translation_channel</string>
+    <string name="channel_name">Miku_AI Translation Service</string>
+    <string name="channel_description">Active real-time screen capture and OCR translation</string>
+    <string name="notification_title">Miku_AI - Traductor Activo</string>
+    <string name="notification_text">Capturando y traduciendo la pantalla en tiempo real</string>
+    <string name="notification_action_stop">Detener</string>
+    <string name="notification_action_pause">Pausar</string>
+    <string name="notification_action_resume">Reanudar</string>
+</resources>
