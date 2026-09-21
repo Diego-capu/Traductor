@@ -28,6 +28,8 @@ class OverlayWindowManager(
     private val onTranslateNowRequested: () -> Unit,
     private val onRegionSnipRequested: () -> Unit,
     private val onSampleAreaRequested: (Rect) -> Unit,
+    private val onCopyTextRequested: () -> Unit = {},
+    private val onSettingsRequested: () -> Unit = {},
     private val onClearOverlayRequested: () -> Unit,
     private val onToggleModeRequested: (isManual: Boolean) -> Unit,
     private val onStateToggle: (newState: ServiceState) -> Unit,
@@ -54,9 +56,13 @@ class OverlayWindowManager(
         onTranslateClicked = onTranslateNowRequested,
         onRegionSnipClicked = onRegionSnipRequested,
         onToggleMagnifierClicked = { toggleMagnifier() },
-        onClearClicked = onClearOverlayRequested,
+        onCopyTextClicked = onCopyTextRequested,
         onToggleModeClicked = onToggleModeRequested,
+        onSettingsOrPauseClicked = onSettingsRequested,
+        onClearClicked = onClearOverlayRequested,
         onCloseClicked = onStopRequested,
+        getSourceLanguage = getSourceLanguage,
+        getTargetLanguage = getTargetLanguage,
         initialIsManualMode = initialIsManualMode
     )
 
@@ -354,6 +360,10 @@ class OverlayWindowManager(
         b.getLocationOnScreen(location)
         val size = b.bubbleSizePx
         return Rect(location[0], location[1], location[0] + size, location[1] + size)
+    }
+
+    fun dismissMenu() {
+        menuView.dismiss()
     }
 
     /**

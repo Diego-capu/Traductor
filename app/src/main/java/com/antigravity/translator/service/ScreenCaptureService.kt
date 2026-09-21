@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -102,6 +104,12 @@ class ScreenCaptureService : Service() {
             },
             onSampleAreaRequested = { sampleRect ->
                 translateRegion(sampleRect)
+            },
+            onCopyTextRequested = {
+                extractAndCopyScreenText()
+            },
+            onSettingsRequested = {
+                openSettingsDashboard()
             },
             onClearOverlayRequested = {
                 lastDetectedBlocks = emptyList()
@@ -377,6 +385,70 @@ class ScreenCaptureService : Service() {
                 }
             }
         }
+    }
+
+    /**
+     * Captures the screen, runs OCR, clusters speech bubbles, and copies all extracted text
+     * directly to the clipboard without translating, conserving DeepL monthly quota.
+     */
+    fun extractAndCopyScreenText() {
+        serviceScope.launch {
+            val engine = captureEngine
+            if (engine == null) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@ScreenCaptureService, "Iniciando motor de captura...", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+
+            delay(150)
+
+            val bitmap = engine.acquireLatestFrame()
+            if (bitmap == null) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@ScreenCaptureService, "No se pudo capturar la pantalla", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+
+            try {
+                val rawBlocks = ocrEngine.processFrame(bitmap)
+                val cleanBlocks = filterIgnoredScreenRegions(rawBlocks)
+                val density = resources.displayMetrics.density
+                val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density)
+
+                if (detectedBlocks.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@ScreenCaptureService, "No se detectó texto para copiar", Toast.LENGTH_SHORT).show()
+                    }
+                    return@launch
+                }
+
+                val extractedText = detectedBlocks.joinToString("\n\n") { it.text }
+                withContext(Dispatchers.Main) {
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("Miku_AI Texto Extraído", extractedText)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(
+                        this@ScreenCaptureService,
+                        "📋 Copiado al portapapeles (${detectedBlocks.size} bloques)",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Error extracting text: ${e.message}", e)
+            } finally {
+                bitmap.recycle()
+            }
+        }
+    }
+
+    private fun openSettingsDashboard() {
+        overlayWindowManager.dismissMenu()
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        startActivity(intent)
     }
 
     private fun toggleCaptureMode(isManual: Boolean) {
