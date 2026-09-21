@@ -112,88 +112,104 @@ class FloatingMenuView(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding((10 * density).toInt(), (6 * density).toInt(), (10 * density).toInt(), (6 * density).toInt())
+            // Glassmorphism: semi-transparent dark charcoal with crisp 1.5dp #39C5BB border
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#F01F1F27"))
-                cornerRadius = 40f
-                setStroke(2, Color.parseColor("#4DFFFFFF"))
+                setColor(Color.parseColor("#E6171B24"))
+                cornerRadius = 16f * density
+                setStroke((1.5f * density).toInt(), Color.parseColor("#39C5BB"))
             }
-            elevation = 20f
+            elevation = 22f
         }
 
-        // 1. "TRADUCIR"
+        // 1. "TRADUCIR" (Primary Action: Vocaloid Teal CTA)
         val translateButton = TextView(context).apply {
             text = "TRADUCIR"
             textSize = 12f
-            setTextColor(Color.WHITE)
+            setTextColor(Color.parseColor("#0B1326")) // Dark obsidian text
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             isClickable = true
-            setPadding(16, 10, 16, 10)
-            background = createRoundedButton(Color.parseColor("#6200EE"), 24f)
+            setPadding((16 * density).toInt(), (9 * density).toInt(), (16 * density).toInt(), (9 * density).toInt())
+            background = createRoundedButton(Color.parseColor("#39C5BB"), 14f * density)
             setOnClickListener {
                 dismiss()
                 onTranslateClicked()
             }
         }
 
-        // 2. "RECORTAR" (Snip Area)
+        // 2. "RECORTAR" (Snip Area: Teal Glass)
         val snipButton = TextView(context).apply {
             text = "✂ RECORTAR"
             textSize = 12f
-            setTextColor(Color.WHITE)
+            setTextColor(Color.parseColor("#39C5BB"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             isClickable = true
-            setPadding(14, 10, 14, 10)
+            setPadding((14 * density).toInt(), (9 * density).toInt(), (14 * density).toInt(), (9 * density).toInt())
             val p = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                marginStart = 8
+                marginStart = (8 * density).toInt()
             }
             layoutParams = p
-            background = createRoundedButton(Color.parseColor("#00838F"), 24f)
+            background = createRoundedButton(
+                Color.parseColor("#2639C5BB"),
+                14f * density,
+                Color.parseColor("#39C5BB"),
+                (1f * density).toInt()
+            )
             setOnClickListener {
                 dismiss()
                 onRegionSnipClicked()
             }
         }
 
-        // 3. "LUPA" (Magnifier Bubble)
+        // 3. "LUPA" (Magnifier: Miku Accent Magenta)
         val magnifierButton = TextView(context).apply {
             text = "🔍 LUPA"
             textSize = 12f
-            setTextColor(Color.WHITE)
+            setTextColor(Color.parseColor("#E040FB"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             isClickable = true
-            setPadding(14, 10, 14, 10)
+            setPadding((14 * density).toInt(), (9 * density).toInt(), (14 * density).toInt(), (9 * density).toInt())
             val p = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                marginStart = 8
+                marginStart = (8 * density).toInt()
             }
             layoutParams = p
-            background = createRoundedButton(Color.parseColor("#3949AB"), 24f)
+            background = createRoundedButton(
+                Color.parseColor("#26E040FB"),
+                14f * density,
+                Color.parseColor("#E040FB"),
+                (1f * density).toInt()
+            )
             setOnClickListener {
                 dismiss()
                 onToggleMagnifierClicked()
             }
         }
 
-        // 4. "LIMPIAR"
+        // 4. "LIMPIAR" (Neutral Glass)
         val clearButton = TextView(context).apply {
             text = "LIMPIAR"
             textSize = 12f
-            setTextColor(Color.parseColor("#CFD8DC"))
+            setTextColor(Color.parseColor("#8F9BA8"))
             isClickable = true
-            setPadding(12, 10, 12, 10)
+            setPadding((12 * density).toInt(), (9 * density).toInt(), (12 * density).toInt(), (9 * density).toInt())
             val p = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                marginStart = 8
+                marginStart = (8 * density).toInt()
             }
             layoutParams = p
-            background = createRoundedButton(Color.parseColor("#26FFFFFF"), 24f)
+            background = createRoundedButton(
+                Color.parseColor("#1AFFFFFF"),
+                14f * density,
+                Color.parseColor("#338F9BA8"),
+                (1f * density).toInt()
+            )
             setOnClickListener {
                 dismiss()
                 onClearClicked()
@@ -204,21 +220,26 @@ class FloatingMenuView(
         modeButton = TextView(context).apply {
             text = if (isManualMode) "MANUAL" else "AUTO"
             textSize = 11f
-            setTextColor(if (isManualMode) Color.parseColor("#00E676") else Color.parseColor("#FFD600"))
+            setTextColor(if (isManualMode) Color.parseColor("#39C5BB") else Color.parseColor("#E040FB"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             isClickable = true
-            setPadding(12, 10, 12, 10)
+            setPadding((12 * density).toInt(), (9 * density).toInt(), (12 * density).toInt(), (9 * density).toInt())
             val p = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                marginStart = 8
+                marginStart = (8 * density).toInt()
             }
             layoutParams = p
-            background = createRoundedButton(Color.parseColor("#1FFFFFFF"), 24f)
+            val strokeColor = if (isManualMode) Color.parseColor("#4D39C5BB") else Color.parseColor("#4DE040FB")
+            background = createRoundedButton(Color.parseColor("#171B24"), 14f * density, strokeColor, (1f * density).toInt())
             setOnClickListener {
                 isManualMode = !isManualMode
                 text = if (isManualMode) "MANUAL" else "AUTO"
-                setTextColor(if (isManualMode) Color.parseColor("#00E676") else Color.parseColor("#FFD600"))
+                val activeColor = if (isManualMode) Color.parseColor("#39C5BB") else Color.parseColor("#E040FB")
+                val activeStroke = if (isManualMode) Color.parseColor("#4D39C5BB") else Color.parseColor("#4DE040FB")
+                setTextColor(activeColor)
+                background = createRoundedButton(Color.parseColor("#171B24"), 14f * density, activeStroke, (1f * density).toInt())
                 onToggleModeClicked(isManualMode)
             }
         }
@@ -226,19 +247,24 @@ class FloatingMenuView(
         // 6. Close "✕"
         val closeButton = TextView(context).apply {
             text = "✕"
-            textSize = 14f
+            textSize = 13f
             setTextColor(Color.parseColor("#FF5252"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             isClickable = true
-            setPadding(14, 10, 14, 10)
+            setPadding((14 * density).toInt(), (9 * density).toInt(), (14 * density).toInt(), (9 * density).toInt())
             val p = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                marginStart = 8
+                marginStart = (8 * density).toInt()
             }
             layoutParams = p
-            background = createRoundedButton(Color.parseColor("#26FF5252"), 24f)
+            background = createRoundedButton(
+                Color.parseColor("#26FF5252"),
+                14f * density,
+                Color.parseColor("#4DFF5252"),
+                (1f * density).toInt()
+            )
             setOnClickListener {
                 dismiss()
                 onCloseClicked()
@@ -281,14 +307,25 @@ class FloatingMenuView(
         isManualMode = manual
         if (::modeButton.isInitialized) {
             modeButton.text = if (manual) "MANUAL" else "AUTO"
-            modeButton.setTextColor(if (manual) Color.parseColor("#00E676") else Color.parseColor("#FFD600"))
+            val activeColor = if (manual) Color.parseColor("#39C5BB") else Color.parseColor("#E040FB")
+            val activeStroke = if (manual) Color.parseColor("#4D39C5BB") else Color.parseColor("#4DE040FB")
+            modeButton.setTextColor(activeColor)
+            modeButton.background = createRoundedButton(Color.parseColor("#171B24"), 14f * density, activeStroke, (1f * density).toInt())
         }
     }
 
-    private fun createRoundedButton(bgColor: Int, radius: Float): GradientDrawable {
+    private fun createRoundedButton(
+        bgColor: Int,
+        radius: Float,
+        strokeColor: Int = Color.TRANSPARENT,
+        strokeWidth: Int = 0
+    ): GradientDrawable {
         return GradientDrawable().apply {
             setColor(bgColor)
             cornerRadius = radius
+            if (strokeWidth > 0) {
+                setStroke(strokeWidth, strokeColor)
+            }
         }
     }
 }

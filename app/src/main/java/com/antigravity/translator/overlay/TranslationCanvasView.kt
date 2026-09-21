@@ -21,27 +21,30 @@ import com.antigravity.translator.domain.model.TranslatedBlock
  */
 class TranslationCanvasView(context: Context) : View(context) {
 
+    private val density = context.resources.displayMetrics.density
     private val blocks = mutableListOf<TranslatedBlock>()
 
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#F21E1E24") // High opacity dark slate
+        color = Color.parseColor("#F2171B24") // Deep cyber slate (95% opacity)
         style = Paint.Style.FILL
     }
 
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#A06200EE") // Vibrant purple border
+        color = Color.parseColor("#39C5BB") // Signature Vocaloid Teal
         style = Paint.Style.STROKE
-        strokeWidth = 3f
+        strokeWidth = 1.5f * density
     }
 
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        textSize = 34f
+        textSize = 14f * density
         isFakeBoldText = true
+        // Text drop shadow for pristine legibility across busy game / manga content
+        setShadowLayer(5f, 0f, 2f, Color.BLACK)
     }
 
-    private val cornerRadius = 12f
-    private val padding = 10f
+    private val cornerRadius = 12f * density
+    private val padding = 8f * density
 
     init {
         // Start hidden so it consumes zero resources and never blocks touches

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><title>Miku_AI Translate</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;background-color:#0b1326;color:#dae2fd;}body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block;vertical-align:middle;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "on-error-container": "#ffdad6", "tertiary-fixed": "#71f8e4", "on-tertiary-container": "#006b60", "outline-variant": "#3b494b", "surface-container-highest": "#2d3449", "surface-variant": "#2d3449", "on-secondary-fixed": "#2c0051", "on-error": "#690005", "primary-container": "#00f0ff", "secondary-fixed": "#f0dbff", "outline": "#849495", "inverse-on-surface": "#283044", "on-primary-container": "#006970", "on-background": "#dae2fd", "surface-container-lowest": "#060e20", "error-container": "#93000a", "inverse-surface": "#dae2fd", "primary-fixed-dim": "#00dbe9", "inverse-primary": "#006970", "surface-tint": "#00dbe9", "secondary-fixed-dim": "#ddb7ff", "tertiary": "#d3fff6", "on-tertiary": "#003731", "primary-fixed": "#7df4ff", "surface-container-low": "#131b2e", "on-primary-fixed-variant": "#004f54", "on-surface": "#dae2fd", "on-tertiary-fixed": "#00201c", "on-secondary": "#490080", "secondary-container": "#6f00be", "secondary": "#ddb7ff", "surface-dim": "#0b1326", "primary": "#dbfcff", "surface-container-high": "#222a3d", "on-secondary-container": "#d6a9ff", "on-primary": "#00363a", "tertiary-fixed-dim": "#4fdbc8", "surface-container": "#171f33", "on-surface-variant": "#b9cacb", "surface-bright": "#31394d", "error": "#ffb4ab", "background": "#0b1326", "on-tertiary-fixed-variant": "#005048", "surface": "#0b1326", "on-primary-fixed": "#002022", "tertiary-container": "#66efdb", "on-secondary-fixed-variant": "#6900b3" }, borderRadius: { DEFAULT: "1rem", lg: "2rem", xl: "3rem", full: "9999px" }, spacing: { "space-md": "0.75rem", "space-xs": "0.25rem", "space-lg": "1rem", gutter: "0.75rem", "space-xl": "1.5rem", "space-sm": "0.5rem", margin: "1rem" }, fontFamily: { "headline-md": ["Plus Jakarta Sans"], "display-lg": ["Plus Jakarta Sans"], "label-sm": ["JetBrains Mono"], "label-md": ["JetBrains Mono"], "headline-lg": ["Plus Jakarta Sans"], "headline-lg-mobile": ["Plus Jakarta Sans"], "body-lg": ["Inter"], "body-md": ["Inter"], "title-md": ["Inter"] }, fontSize: { "headline-md": ["22px", { lineHeight: "28px", fontWeight: "600" }], "display-lg": ["40px", { lineHeight: "48px", fontWeight: "700" }], "label-sm": ["10px", { lineHeight: "14px", letterSpacing: "0.8px", fontWeight: "400" }], "label-md": ["11px", { lineHeight: "16px", letterSpacing: "0.5px", fontWeight: "500" }], "headline-lg": ["32px", { lineHeight: "40px", fontWeight: "600" }], "headline-lg-mobile": ["26px", { lineHeight: "34px", fontWeight: "600" }], "body-lg": ["15px", { lineHeight: "22px", fontWeight: "400" }], "body-md": ["13px", { lineHeight: "18px", fontWeight: "400" }], "title-md": ["16px", { lineHeight: "24px", fontWeight: "600" }] } } } };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface font-body-md text-body-md flex flex-col min-h-screen"><header class="fixed top-0 w-full z-50 bg-surface/85 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="flex items-center justify-between px-space-lg h-6 text-on-surface-variant font-label-sm text-label-sm"><span class="font-medium tracking-tight text-on-surface">12:45</span><div class="flex items-center gap-space-xs"><span class="text-[10px] font-bold tracking-wider px-1 py-0.5 rounded bg-surface-container-high text-primary">5G</span><span class="material-symbols-outlined text-[14px]">wifi</span><span class="material-symbols-outlined text-[14px]">battery_full</span></div></div><div class="h-14 px-space-lg flex items-center justify-between"><div class="flex items-center gap-space-md"><div class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-primary-fixed shadow-[0_0_12px_rgba(0,240,255,0.15)]"><span class="material-symbols-outlined text-[20px]">g_translate</span></div><div class="flex flex-col"><div class="flex items-center gap-space-xs"><span class="font-label-sm text-label-sm text-primary uppercase tracking-wider">HUD ACTIVE</span><div class="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse"></div></div><h1 class="font-title-md text-title-md text-on-surface leading-none tracking-tight">Dashboard Control</h1></div></div><div class="flex items-center gap-space-sm"><button aria-label="HUD Status" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[22px]">sensors</span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex-1 flex flex-col relative w-full pt-20 pb-24 bg-surface px-space-lg"><div class="flex flex-col w-full space-y-space-lg">
+<!-- Minimalist Status Sub-Bar & Companion Banner -->
+<div class="flex items-center justify-between bg-surface-container-low rounded-DEFAULT px-space-md py-space-sm shadow-sm">
+<div class="flex items-center gap-space-sm">
+<div class="relative flex items-center justify-center">
+<div class="w-2.5 h-2.5 rounded-full bg-primary-container animate-ping absolute opacity-75"></div>
+<div class="w-2 h-2 rounded-full bg-primary-container"></div>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-primary uppercase tracking-wider">Miku Core v2.4</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Servicio Activo • OCR Standby</span>
+</div>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-surface-container-highest text-tertiary-fixed font-medium">ON-DEVICE</span>
+<button aria-label="System Settings" class="w-8 h-8 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+</button>
+</div>
+</div>
+<!-- Service Control Hero Card -->
+<div class="relative overflow-hidden rounded-DEFAULT bg-surface-container-high p-space-lg shadow-md flex flex-col gap-space-md">
+<!-- Ambient glowing subtle gradient blob -->
+<div class="absolute -right-12 -top-12 w-48 h-48 bg-primary-container/10 rounded-full blur-3xl pointer-events-none"></div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[22px]">layers</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block">Overlay Engine</span>
+<h2 class="font-headline-md text-headline-md text-on-surface leading-tight">Servicio Flotante</h2>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary-fixed bg-tertiary-container/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed"></span> LISTO
+      </span>
+</div>
+<!-- Main Toggle Action Button -->
+<button class="w-full py-3 px-space-md rounded-full bg-primary-container text-on-primary-container font-title-md text-title-md font-semibold flex items-center justify-center gap-space-sm shadow-[0_0_20px_rgba(0,240,255,0.25)] active:scale-[0.98] transition-all duration-200 hover:brightness-105" id="serviceToggleBtn">
+<span class="material-symbols-outlined text-[22px]">play_arrow</span>
+<span>Iniciar Servicio Flotante</span>
+</button>
+<!-- System Readiness Checks Matrix -->
+<div class="grid grid-cols-2 gap-space-sm pt-space-xs">
+<div class="flex items-center justify-between p-space-sm rounded-DEFAULT bg-surface-container">
+<div class="flex items-center gap-space-xs truncate pr-1">
+<span class="material-symbols-outlined text-tertiary-fixed text-[18px]">check_circle</span>
+<span class="font-body-md text-body-md text-on-surface truncate">Superposición</span>
+</div>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-surface-container-highest text-tertiary-fixed-dim shrink-0 font-medium">OK</span>
+</div>
+<div class="flex items-center justify-between p-space-sm rounded-DEFAULT bg-surface-container">
+<div class="flex items-center gap-space-xs truncate pr-1">
+<span class="material-symbols-outlined text-tertiary-fixed text-[18px]">screen_share</span>
+<span class="font-body-md text-body-md text-on-surface truncate">MediaProject</span>
+</div>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-surface-container-highest text-tertiary-fixed-dim shrink-0 font-medium">OK</span>
+</div>
+</div>
+</div>
+<!-- Translation Routing & Language Pair -->
+<div class="rounded-DEFAULT bg-surface-container p-space-md shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Ruta de Traducción</span>
+<span class="font-label-sm text-label-sm text-secondary flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">auto_awesome</span> Neural v3
+      </span>
+</div>
+<!-- Dual Language Selection with Interactive Circular Swap -->
+<div class="flex items-center justify-between gap-space-sm">
+<div class="flex-1 bg-surface-container-high rounded-DEFAULT p-space-sm flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Origen</span>
+<span class="font-body-lg text-body-lg text-primary font-medium truncate mt-0.5">Detectar Auto</span>
+<span class="font-label-sm text-label-sm text-outline truncate">JA / EN / ZH</span>
+</div>
+<button aria-label="Intercambiar idiomas" class="w-10 h-10 rounded-full bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container text-primary flex items-center justify-center transition-all duration-200 active:rotate-180 shrink-0 shadow-sm" id="swapLangBtn">
+<span class="material-symbols-outlined text-[20px]">swap_horiz</span>
+</button>
+<div class="flex-1 bg-surface-container-high rounded-DEFAULT p-space-sm flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Destino</span>
+<span class="font-body-lg text-body-lg text-on-surface font-medium truncate mt-0.5">Español</span>
+<span class="font-label-sm text-label-sm text-tertiary-fixed truncate">ES-LatAm (Auto)</span>
+</div>
+</div>
+</div>
+<!-- Operational Mode Selector -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between px-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Modo de Captura Activo</span>
+<span class="font-label-sm text-label-sm text-primary">HUD Rápido</span>
+</div>
+<div class="grid grid-cols-3 gap-space-sm">
+<!-- Full Screen -->
+<button class="mode-card rounded-DEFAULT bg-surface-container p-space-sm flex flex-col items-center justify-center text-center gap-1.5 transition-all text-on-surface-variant hover:bg-surface-container-high active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-[20px]">fullscreen</span>
+</div>
+<span class="font-label-md text-label-md font-medium text-on-surface">Completa</span>
+<span class="font-label-sm text-label-sm text-outline">Scan global</span>
+</button>
+<!-- Snip Mode (Selected) -->
+<button class="mode-card rounded-DEFAULT bg-surface-container-high p-space-sm flex flex-col items-center justify-center text-center gap-1.5 transition-all text-on-surface shadow-[0_0_14px_rgba(0,240,255,0.2)]">
+<div class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container">
+<span class="material-symbols-outlined text-[20px]">crop</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="font-label-md text-label-md font-semibold text-primary">Recorte</span>
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Lasso select</span>
+</button>
+<!-- Magnifier -->
+<button class="mode-card rounded-DEFAULT bg-surface-container p-space-sm flex flex-col items-center justify-center text-center gap-1.5 transition-all text-on-surface-variant hover:bg-surface-container-high active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-[20px]">filter_center_focus</span>
+</div>
+<span class="font-label-md text-label-md font-medium text-on-surface">Lupa</span>
+<span class="font-label-sm text-label-sm text-outline">Hover dinámico</span>
+</button>
+</div>
+</div>
+<!-- DeepL / LLM Provider Configuration Card -->
+<div class="rounded-DEFAULT bg-surface-container p-space-md shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[20px]">neurology</span>
+<span class="font-title-md text-title-md text-on-surface font-semibold">DeepL Pro API</span>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-tertiary-container/20 text-tertiary-fixed font-medium flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed"></span> Conectado
+      </span>
+</div>
+<!-- Masked API Key Input Field -->
+<div class="flex items-center gap-space-sm bg-surface-container-lowest rounded-DEFAULT px-space-md py-2.5">
+<span class="material-symbols-outlined text-outline text-[18px]">key</span>
+<div class="flex-1 min-w-0 flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface font-mono tracking-widest truncate select-none">••••••••••••••••3a9F</span>
+<span class="font-label-sm text-label-sm text-primary px-1.5 py-0.5 rounded bg-surface-container-high">v2</span>
+</div>
+<button class="px-2.5 py-1 rounded bg-surface-container-high hover:bg-surface-container-highest text-primary font-label-sm text-label-sm transition-colors active:scale-95 shrink-0" id="testApiBtn">
+        Probar
+      </button>
+</div>
+<!-- Quota Progress Section -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between font-label-sm text-label-sm">
+<span class="text-on-surface-variant">Cuota Mensual</span>
+<span class="text-primary font-mono font-medium">78% restante</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container-highest overflow-hidden">
+<div class="h-full rounded-full bg-primary-container w-[78%] transition-all duration-500 shadow-[0_0_8px_rgba(0,240,255,0.4)]"></div>
+</div>
+<div class="flex items-center justify-between font-label-sm text-label-sm text-outline">
+<span>390,000 caracteres disponibles</span>
+<span>500k cap</span>
+</div>
+</div>
+</div>
+<!-- Live Telemetry & Visual Benchmark -->
+<div class="rounded-DEFAULT bg-surface-container-low p-space-md flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Telemetría en Vivo</span>
+<span class="font-label-sm text-label-sm text-tertiary-fixed font-mono">FRAME: 60FPS</span>
+</div>
+<div class="grid grid-cols-3 gap-space-xs">
+<div class="bg-surface-container rounded-DEFAULT p-space-sm flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Latencia</span>
+<div class="flex items-baseline gap-1 mt-0.5">
+<span class="font-headline-md text-headline-md text-primary font-mono font-bold leading-none">180</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">ms</span>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary-fixed mt-1">Óptima</span>
+</div>
+<div class="bg-surface-container rounded-DEFAULT p-space-sm flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Precisión OCR</span>
+<div class="flex items-baseline gap-1 mt-0.5">
+<span class="font-headline-md text-headline-md text-on-surface font-mono font-bold leading-none">99.4</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">%</span>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary-fixed mt-1">Caret OCR</span>
+</div>
+<div class="bg-surface-container rounded-DEFAULT p-space-sm flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Buffer RAM</span>
+<div class="flex items-baseline gap-1 mt-0.5">
+<span class="font-headline-md text-headline-md text-secondary font-mono font-bold leading-none">42</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">MB</span>
+</div>
+<span class="font-label-sm text-label-sm text-outline mt-1">Low Footprint</span>
+</div>
+</div>
+</div>
+<!-- Real-Time Contextual Card with Visual Media Preview -->
+<div class="rounded-DEFAULT bg-surface-container overflow-hidden shadow-sm flex flex-col">
+<div class="relative h-28 w-full bg-cover bg-center" data-alt="Cyberpunk high-tech mobile UI heads-up display overlay showcasing real-time text OCR detection bounding boxes and neon cyan subtitle panels over a fast-paced action video game sequence in an authentic dark slate room with subtle rim lighting" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCT5dyTomjp8srZRJqpKihOsJCYZUlxjCa7ydLZ6RSeu1AbJYH1KNkbjLUNR4N3g8G7dcTe6K1KkOMKZ861KO-BIFxgju40dpT_09O3WQ8s1mnio8IMEsfvg1_8hU70LaXnW4wJ-mdqmpYVk64lvOzyjvJmgThxASk3_45JW790i5mEaQUGCmuEgc3zWW6qiyOG9QOLHALv4wVdhrBgn4xqdzU-Wked2_tsDE5IDTUHaefi5feCGJ8')">
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container via-surface-container/60 to-transparent"></div>
+<div class="absolute bottom-2 left-3 right-3 flex items-center justify-between">
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded bg-surface-container-lowest/80 text-primary backdrop-blur-md">VISTA PREVIA HUD</span>
+<span class="font-label-sm text-label-sm text-on-surface font-mono">1080p Overlay Ready</span>
+</div>
+</div>
+<div class="p-space-md flex items-center justify-between gap-space-sm">
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium">Burbuja Rápida Asistiva</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Pill flotante acoplada al borde derecho</span>
+</div>
+<button class="px-space-md py-1.5 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-primary font-label-md text-label-md transition-colors active:scale-95 shrink-0">
+        Calibrar
+      </button>
+</div>
+</div>
+</div>
+<script>
+  (function() {
+    const toggleBtn = document.getElementById('serviceToggleBtn');
+    let isRunning = false;
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', function() {
+        isRunning = !isRunning;
+        if (isRunning) {
+          toggleBtn.classList.remove('bg-primary-container', 'text-on-primary-container');
+          toggleBtn.classList.add('bg-error-container', 'text-on-error-container');
+          toggleBtn.innerHTML = `
+            <span class="material-symbols-outlined text-[22px]">stop</span>
+            <span>Detener Servicio Flotante</span>
+          `;
+        } else {
+          toggleBtn.classList.remove('bg-error-container', 'text-on-error-container');
+          toggleBtn.classList.add('bg-primary-container', 'text-on-primary-container');
+          toggleBtn.innerHTML = `
+            <span class="material-symbols-outlined text-[22px]">play_arrow</span>
+            <span>Iniciar Servicio Flotante</span>
+          `;
+        }
+      });
+    }
+
+    const testBtn = document.getElementById('testApiBtn');
+    if (testBtn) {
+      testBtn.addEventListener('click', function() {
+        const originalText = testBtn.innerText;
+        testBtn.innerText = 'Ping...';
+        setTimeout(() => {
+          testBtn.innerText = 'OK (142ms)';
+          setTimeout(() => {
+            testBtn.innerText = originalText;
+          }, 1800);
+        }, 500);
+      });
+    }
+
+    const swapBtn = document.getElementById('swapLangBtn');
+    if (swapBtn) {
+      swapBtn.addEventListener('click', function() {
+        this.classList.toggle('rotate-180');
+      });
+    }
+  })();
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface-container-low/90 backdrop-blur-xl shadow-[0_-2px_12px_rgba(0,0,0,0.25)]" data-active-classes="text-primary-container"><div class="h-16 px-space-md flex items-center justify-around"><a aria-current="page" class="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 transition-colors text-primary-container" data-path="dashboard-control" href="#"><span class="material-symbols-outlined text-[22px]">radar</span><span class="font-label-sm text-label-sm mt-0.5">Translate</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 text-on-surface-variant hover:text-on-surface transition-colors" data-path="floating-hud" href="#"><span class="material-symbols-outlined text-[22px]">layers</span><span class="font-label-sm text-label-sm mt-0.5">Overlay</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 text-on-surface-variant hover:text-on-surface transition-colors" data-path="translation-history" href="#"><span class="material-symbols-outlined text-[22px]">history</span><span class="font-label-sm text-label-sm mt-0.5">Logs</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 text-on-surface-variant hover:text-on-surface transition-colors" data-path="ai-models" href="#"><span class="material-symbols-outlined text-[22px]">memory</span><span class="font-label-sm text-label-sm mt-0.5">Engines</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 text-on-surface-variant hover:text-on-surface transition-colors" data-path="system-settings" href="#"><span class="material-symbols-outlined text-[22px]">tune</span><span class="font-label-sm text-label-sm mt-0.5">Config</span></a></div></nav></body></html>

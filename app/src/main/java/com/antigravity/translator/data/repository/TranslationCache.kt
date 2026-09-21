@@ -14,15 +14,17 @@ import android.util.LruCache
  */
 class TranslationCache(
     context: Context? = null,
-    maxMemoryEntries: Int = 2000
+    val maxMemoryEntries: Int = 2000
 ) {
     private val diskPrefs: SharedPreferences? = context?.getSharedPreferences(
         "persistent_translations_cache",
         Context.MODE_PRIVATE
     )
 
-    private val memCache = object : LruCache<String, String>(maxMemoryEntries) {
-        override fun sizeOf(key: String, value: String): Int = 1
+    private val memCache = object : java.util.LinkedHashMap<String, String>(maxMemoryEntries, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean {
+            return size > maxMemoryEntries
+        }
     }
 
     /**
@@ -42,13 +44,13 @@ class TranslationCache(
         val key = normalizeKey(sourceLang, targetLang, text)
 
         // 1. Check in-memory LRU cache
-        val inMem = memCache.get(key)
+        val inMem = memCache[key]
         if (inMem != null) return inMem
 
         // 2. Check persistent disk storage
         val fromDisk = diskPrefs?.getString(key, null)
         if (fromDisk != null) {
-            memCache.put(key, fromDisk)
+            memCache[key] = fromDisk
             return fromDisk
         }
 
@@ -60,16 +62,16 @@ class TranslationCache(
         if (text.isBlank() || translation.isBlank()) return
         val key = normalizeKey(sourceLang, targetLang, text)
 
-        memCache.put(key, translation)
+        memCache[key] = translation
         diskPrefs?.edit()?.putString(key, translation)?.apply()
     }
 
     @Synchronized
     fun clear() {
-        memCache.evictAll()
+        memCache.clear()
         diskPrefs?.edit()?.clear()?.apply()
     }
 
     @Synchronized
-    fun size(): Int = memCache.size()
+    fun size(): Int = memCache.size
 }

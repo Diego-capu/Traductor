@@ -49,14 +49,14 @@ class FloatingBubbleView(
     private val statusIndicator: View
 
     init {
-        // Dark circular base with shadow elevation
+        // Deep cybernetic charcoal circular base with elevation
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(Color.parseColor("#1A1A24"))
+            setColor(Color.parseColor("#12131A"))
         }
-        elevation = 14f
+        elevation = 18f
 
-        // Animated GIF ImageView with circular clipping
+        // Animated GIF ImageView with circular hardware-accelerated clipping
         circleIcon = ImageView(context).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -68,21 +68,21 @@ class FloatingBubbleView(
             clipToOutline = true
         }
 
-        // Circular border ring overlay for clean visual separation
+        // Circular badge with glowing Miku teal border (#39C5BB)
         borderOverlay = View(context).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.TRANSPARENT)
-                setStroke((2 * density).toInt(), Color.parseColor("#99FFFFFF"))
+                setStroke((2.5f * density).toInt(), Color.parseColor("#39C5BB"))
             }
             isClickable = false
             isFocusable = false
         }
 
-        // Small green/amber/red status dot on top-right edge
+        // Miku telemetry status indicator dot on top-right edge
         statusIndicator = View(context).apply {
-            val dotSize = (11 * density).toInt()
+            val dotSize = (12 * density).toInt()
             val p = LayoutParams(dotSize, dotSize).apply {
                 gravity = Gravity.TOP or Gravity.END
                 topMargin = (2 * density).toInt()
@@ -91,10 +91,10 @@ class FloatingBubbleView(
             layoutParams = p
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#00E676")) // Active green
-                setStroke(2, Color.WHITE)
+                setColor(Color.parseColor("#39C5BB")) // Signature Miku Teal
+                setStroke((1.5f * density).toInt(), Color.parseColor("#12131A"))
             }
-            elevation = 15f
+            elevation = 20f
             isClickable = false
             isFocusable = false
         }
@@ -112,7 +112,10 @@ class FloatingBubbleView(
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     val source = ImageDecoder.createSource(resources, R.drawable.miku_bubble)
-                    val drawable = ImageDecoder.decodeDrawable(source)
+                    // Efficient hardware-accelerated memory decoding to preserve battery & GPU bandwidth
+                    val drawable = ImageDecoder.decodeDrawable(source) { decoder, _, _ ->
+                        decoder.allocator = ImageDecoder.ALLOCATOR_HARDWARE
+                    }
                     circleIcon.setImageDrawable(drawable)
                     if (drawable is AnimatedImageDrawable) {
                         drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
@@ -124,7 +127,7 @@ class FloatingBubbleView(
             } catch (e: Throwable) {
                 Log.e("FloatingBubbleView", "Error loading animated GIF", e)
                 circleIcon.setImageResource(android.R.drawable.ic_menu_search)
-                circleIcon.setColorFilter(Color.WHITE)
+                circleIcon.setColorFilter(Color.parseColor("#39C5BB"))
             }
         }
     }
@@ -140,6 +143,18 @@ class FloatingBubbleView(
         super.onDetachedFromWindow()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             (circleIcon.drawable as? AnimatedImageDrawable)?.stop()
+        }
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val anim = circleIcon.drawable as? AnimatedImageDrawable
+            if (visibility == View.VISIBLE) {
+                anim?.start()
+            } else {
+                anim?.stop()
+            }
         }
     }
 
@@ -187,7 +202,7 @@ class FloatingBubbleView(
 
     fun updateState(state: ServiceState) {
         val dotColor = when (state) {
-            ServiceState.RUNNING -> Color.parseColor("#00E676") // Green
+            ServiceState.RUNNING -> Color.parseColor("#39C5BB") // Signature Miku Teal
             ServiceState.PAUSED -> Color.parseColor("#FFD600")  // Amber
             ServiceState.STOPPED -> Color.parseColor("#FF5252") // Red
         }

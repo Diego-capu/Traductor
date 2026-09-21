@@ -46,28 +46,28 @@ class RegionSelectionOverlayView(
 
     // Paints
     private val scrimPaint = Paint().apply {
-        color = Color.parseColor("#99000000") // 60% opacity dark scrim
+        color = Color.parseColor("#B30B0F19") // 70% deep cyber scrim
         style = Paint.Style.FILL
     }
 
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#00E5FF") // Neon Cyan
+        color = Color.parseColor("#39C5BB") // Signature Vocaloid Teal
         style = Paint.Style.STROKE
-        strokeWidth = 3f * density
+        strokeWidth = 2f * density
     }
 
     private val cornerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#00E5FF")
+        color = Color.parseColor("#39C5BB")
         style = Paint.Style.STROKE
-        strokeWidth = 6f * density
+        strokeWidth = 4.5f * density
         strokeCap = Paint.Cap.ROUND
     }
 
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
+        color = Color.parseColor("#39C5BB")
         textSize = 12f * density
         textAlign = Paint.Align.CENTER
-        setShadowLayer(4f, 0f, 2f, Color.BLACK)
+        setShadowLayer(6f, 0f, 2f, Color.BLACK)
     }
 
     private val actionContainer: LinearLayout
@@ -79,13 +79,13 @@ class RegionSelectionOverlayView(
         val instructionBadge = TextView(context).apply {
             text = "Arrastra sobre la pantalla para recortar el área a traducir"
             setTextColor(Color.WHITE)
-            textSize = 13f
+            textSize = 12.5f
             gravity = Gravity.CENTER
             setPadding((16 * density).toInt(), (10 * density).toInt(), (16 * density).toInt(), (10 * density).toInt())
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#E61E1E24"))
-                cornerRadius = 20f * density
-                setStroke((1.5f * density).toInt(), Color.parseColor("#40FFFFFF"))
+                setColor(Color.parseColor("#E6171B24"))
+                cornerRadius = 14f * density
+                setStroke((1.5f * density).toInt(), Color.parseColor("#4D39C5BB"))
             }
             val p = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -101,23 +101,24 @@ class RegionSelectionOverlayView(
             gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE
             setPadding((8 * density).toInt(), (6 * density).toInt(), (8 * density).toInt(), (6 * density).toInt())
+            // Frosted cyberpunk glassmorphism container
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#F2181820"))
-                cornerRadius = 24f * density
-                setStroke((2 * density).toInt(), Color.parseColor("#00E5FF"))
+                setColor(Color.parseColor("#E6171B24"))
+                cornerRadius = 16f * density
+                setStroke((1.5f * density).toInt(), Color.parseColor("#39C5BB"))
             }
-            elevation = 16f
+            elevation = 20f
         }
 
         val confirmBtn = TextView(context).apply {
             text = "✓ TRADUCIR"
             textSize = 12f
-            setTextColor(Color.WHITE)
+            setTextColor(Color.parseColor("#0B1326")) // Dark obsidian text
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding((16 * density).toInt(), (8 * density).toInt(), (16 * density).toInt(), (8 * density).toInt())
+            setPadding((16 * density).toInt(), (9 * density).toInt(), (16 * density).toInt(), (9 * density).toInt())
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#6200EE"))
-                cornerRadius = 18f * density
+                setColor(Color.parseColor("#39C5BB"))
+                cornerRadius = 14f * density
             }
             setOnClickListener {
                 if (hasSelection && selectedRect.width() > 20 && selectedRect.height() > 20) {
@@ -131,14 +132,15 @@ class RegionSelectionOverlayView(
             textSize = 12f
             setTextColor(Color.parseColor("#FF5252"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding((14 * density).toInt(), (8 * density).toInt(), (14 * density).toInt(), (8 * density).toInt())
+            setPadding((14 * density).toInt(), (9 * density).toInt(), (14 * density).toInt(), (9 * density).toInt())
             val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 marginStart = (8 * density).toInt()
             }
             layoutParams = p
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#26FF5252"))
-                cornerRadius = 18f * density
+                cornerRadius = 14f * density
+                setStroke((1f * density).toInt(), Color.parseColor("#4DFF5252"))
             }
             setOnClickListener {
                 onDismissed()

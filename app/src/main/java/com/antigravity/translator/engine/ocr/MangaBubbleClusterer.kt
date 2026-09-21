@@ -29,7 +29,9 @@ object MangaBubbleClusterer {
 
         // Filter out empty or micro noise artifacts
         val validBlocks = blocks.filter {
-            it.text.trim().isNotEmpty() && it.boundingBox.width() > 10 && it.boundingBox.height() > 10
+            val w = it.boundingBox.right - it.boundingBox.left
+            val h = it.boundingBox.bottom - it.boundingBox.top
+            it.text.trim().isNotEmpty() && w > 10 && h > 10
         }
 
         val clusters = mutableListOf<MutableCluster>()
@@ -80,12 +82,12 @@ object MangaBubbleClusterer {
         // Convert clusters into final unified DetectedTextBlocks with exact bounds
         return clusters.map { cluster ->
             val unifiedText = cluster.buildUnifiedText()
-            val exactRect = Rect(
-                cluster.bounds.left,
-                cluster.bounds.top,
-                cluster.bounds.right,
-                cluster.bounds.bottom
-            )
+            val exactRect = Rect().apply {
+                left = cluster.bounds.left
+                top = cluster.bounds.top
+                right = cluster.bounds.right
+                bottom = cluster.bounds.bottom
+            }
             DetectedTextBlock(
                 id = UUID.randomUUID().toString(),
                 text = unifiedText,
@@ -95,7 +97,12 @@ object MangaBubbleClusterer {
     }
 
     private class MutableCluster(firstBlock: DetectedTextBlock) {
-        val bounds = Rect(firstBlock.boundingBox)
+        val bounds = Rect().apply {
+            left = firstBlock.boundingBox.left
+            top = firstBlock.boundingBox.top
+            right = firstBlock.boundingBox.right
+            bottom = firstBlock.boundingBox.bottom
+        }
         val textPieces = mutableListOf<TextPiece>()
 
         init {
@@ -103,13 +110,20 @@ object MangaBubbleClusterer {
         }
 
         fun add(block: DetectedTextBlock) {
-            bounds.union(block.boundingBox)
+            unionRect(bounds, block.boundingBox)
             textPieces.add(TextPiece(block.text.trim(), block.boundingBox.top, block.boundingBox.left))
         }
 
         fun mergeWith(other: MutableCluster) {
-            bounds.union(other.bounds)
+            unionRect(bounds, other.bounds)
             textPieces.addAll(other.textPieces)
+        }
+
+        private fun unionRect(target: Rect, source: Rect) {
+            if (source.left < target.left) target.left = source.left
+            if (source.top < target.top) target.top = source.top
+            if (source.right > target.right) target.right = source.right
+            if (source.bottom > target.bottom) target.bottom = source.bottom
         }
 
         fun isNear(rect: Rect, maxVGap: Int, maxHGap: Int): Boolean {

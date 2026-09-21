@@ -12,7 +12,7 @@ class TranslationCacheTest {
 
     @Before
     fun setUp() {
-        cache = TranslationCache(maxEntries = 3)
+        cache = TranslationCache(maxMemoryEntries = 3)
     }
 
     @Test
