@@ -32,26 +32,22 @@ class MangaBubbleView(
     val textView: TextView
 
     init {
-        val density = context.resources.displayMetrics.density
-
-        // High readability Miku cyberpunk dark slate card
+        // Comic speech bubble card styling
         val bubbleBackground = GradientDrawable().apply {
-            setColor(Color.parseColor("#F2171B24")) // 95% opacity dark slate to cleanly occlude original text
-            cornerRadius = 12f * density
-            setStroke((1.5f * density).toInt(), Color.parseColor("#39C5BB")) // Crisp Miku teal border
+            setColor(Color.WHITE) // Solid white to completely cover original manga dialogue
+            cornerRadius = 18f
+            setStroke(2, Color.parseColor("#1C1B1F")) // Classic comic ink outline
         }
         background = bubbleBackground
-        elevation = 8f
+        elevation = 6f
 
         textView = TextView(context).apply {
             text = block.translatedText.ifEmpty { block.originalText }
-            setTextColor(Color.WHITE)
-            // Subtle black drop shadow for pristine legibility across any game or manga
-            setShadowLayer(5f, 0f, 2f, Color.BLACK)
+            setTextColor(Color.parseColor("#0A0A0A"))
             gravity = Gravity.CENTER
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             includeFontPadding = false
-            setPadding((6 * density).toInt(), (4 * density).toInt(), (6 * density).toInt(), (4 * density).toInt())
+            setPadding(6, 4, 6, 4)
             setLineSpacing(1f, 1.0f)
 
             // Auto-size text to fill the bubble neatly

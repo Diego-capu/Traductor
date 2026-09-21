@@ -54,31 +54,28 @@ class TranslationDetailDialog(
             PixelFormat.TRANSLUCENT
         )
 
-        val density = context.resources.displayMetrics.density
-
-        // Semi-transparent deep cyber scrim backdrop
+        // Semi-transparent scrim backdrop
         val backdrop = FrameLayout(context).apply {
-            setBackgroundColor(Color.parseColor("#B30B0F19"))
+            setBackgroundColor(Color.parseColor("#99000000"))
             setOnClickListener { dismiss() }
         }
 
-        // Center card container: Frosted glassmorphism with crisp Miku Teal border
+        // Center card container
         val cardLayout = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            val padH = (24 * density).toInt()
-            val padV = (20 * density).toInt()
-            setPadding(padH, padV, padH, padV)
+            setPadding(32, 28, 32, 28)
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#F0171B24")) // 94% opacity dark cyber charcoal
-                cornerRadius = 18f * density
-                setStroke((1.5f * density).toInt(), Color.parseColor("#39C5BB"))
+                setColor(Color.parseColor("#FFFDFD"))
+                cornerRadius = 32f
+                setStroke(3, Color.parseColor("#1A1A1A"))
             }
             elevation = 24f
+            // Prevent clicks inside card from dismissing
             isClickable = true
         }
 
         val cardParams = FrameLayout.LayoutParams(
-            (context.resources.displayMetrics.widthPixels * 0.90).toInt(),
+            (context.resources.displayMetrics.widthPixels * 0.88).toInt(),
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.CENTER
@@ -91,9 +88,9 @@ class TranslationDetailDialog(
         }
 
         val titleText = TextView(context).apply {
-            text = "Miku_AI • Traducción"
-            textSize = 13.5f
-            setTextColor(Color.parseColor("#39C5BB"))
+            text = "Traducción del Bocadillo"
+            textSize = 14f
+            setTextColor(Color.parseColor("#6200EE"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             val p = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             layoutParams = p
@@ -101,9 +98,9 @@ class TranslationDetailDialog(
 
         val closeBtn = TextView(context).apply {
             text = "✕"
-            textSize = 16f
-            setTextColor(Color.parseColor("#8F9BA8"))
-            setPadding((12 * density).toInt(), (6 * density).toInt(), (12 * density).toInt(), (6 * density).toInt())
+            textSize = 18f
+            setTextColor(Color.parseColor("#757575"))
+            setPadding(16, 8, 16, 8)
             setOnClickListener { dismiss() }
         }
 
@@ -113,29 +110,27 @@ class TranslationDetailDialog(
         // 2. Large Translated Text Box
         val translatedText = TextView(context).apply {
             text = block.translatedText.ifEmpty { block.originalText }
-            textSize = 18.5f
-            setTextColor(Color.WHITE)
+            textSize = 20f
+            setTextColor(Color.parseColor("#0A0A0A"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setLineSpacing(5f * density, 1.15f)
-            setPadding(0, (14 * density).toInt(), 0, (14 * density).toInt())
-            setShadowLayer(4f, 0f, 2f, Color.BLACK)
+            setLineSpacing(6f, 1.2f)
+            setPadding(0, 16, 0, 16)
         }
 
         // 3. Original Text Sub-card
         val originalContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding((16 * density).toInt(), (12 * density).toInt(), (16 * density).toInt(), (12 * density).toInt())
+            setPadding(20, 14, 20, 14)
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#12151D"))
-                cornerRadius = 12f * density
-                setStroke((1f * density).toInt(), Color.parseColor("#2A3245"))
+                setColor(Color.parseColor("#F4F4F6"))
+                cornerRadius = 16f
             }
             val p = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                topMargin = (8 * density).toInt()
-                bottomMargin = (16 * density).toInt()
+                topMargin = 12
+                bottomMargin = 20
             }
             layoutParams = p
         }
@@ -148,23 +143,18 @@ class TranslationDetailDialog(
         val origLabel = TextView(context).apply {
             text = "ORIGINAL"
             textSize = 10f
-            setTextColor(Color.parseColor("#8F9BA8"))
+            setTextColor(Color.parseColor("#8E8E93"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             val p = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             layoutParams = p
         }
 
-        // Audio in Miku Accent Magenta
         val origTtsBtn = TextView(context).apply {
             text = "🔊 Escuchar"
             textSize = 11f
-            setTextColor(Color.parseColor("#E040FB"))
+            setTextColor(Color.parseColor("#6200EE"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding((10 * density).toInt(), (4 * density).toInt(), (10 * density).toInt(), (4 * density).toInt())
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#26E040FB"))
-                cornerRadius = 10f * density
-            }
+            setPadding(12, 4, 12, 4)
             setOnClickListener {
                 val srcLang = getSourceLanguage?.invoke() ?: "EN"
                 ttsManager?.speak(block.originalText, srcLang)
@@ -174,20 +164,9 @@ class TranslationDetailDialog(
         val origCopyBtn = TextView(context).apply {
             text = "📋 Copiar"
             textSize = 11f
-            setTextColor(Color.parseColor("#39C5BB"))
+            setTextColor(Color.parseColor("#6200EE"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding((10 * density).toInt(), (4 * density).toInt(), (10 * density).toInt(), (4 * density).toInt())
-            val p = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                marginStart = (6 * density).toInt()
-            }
-            layoutParams = p
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#2639C5BB"))
-                cornerRadius = 10f * density
-            }
+            setPadding(12, 4, 12, 4)
             setOnClickListener {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clip = ClipData.newPlainText("Texto Original", block.originalText)
@@ -203,9 +182,9 @@ class TranslationDetailDialog(
         val origContent = TextView(context).apply {
             text = block.originalText
             textSize = 13f
-            setTextColor(Color.parseColor("#8F9BA8"))
-            setLineSpacing(3f * density, 1.1f)
-            setPadding(0, (6 * density).toInt(), 0, 0)
+            setTextColor(Color.parseColor("#424242"))
+            setLineSpacing(4f, 1.1f)
+            setPadding(0, 4, 0, 0)
         }
 
         originalContainer.addView(origHeaderRow)
@@ -217,17 +196,16 @@ class TranslationDetailDialog(
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        // Primary TTS button styled in Miku Accent Magenta
         val ttsSpeakBtn = TextView(context).apply {
             text = "🔊 Escuchar"
-            textSize = 12.5f
-            setTextColor(Color.parseColor("#E040FB"))
+            textSize = 13f
+            setTextColor(Color.parseColor("#00838F"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding((16 * density).toInt(), (10 * density).toInt(), (16 * density).toInt(), (10 * density).toInt())
+            setPadding(20, 12, 20, 12)
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#26E040FB"))
-                cornerRadius = 14f * density
-                setStroke((1.5f * density).toInt(), Color.parseColor("#E040FB"))
+                setColor(Color.parseColor("#1A00E5FF"))
+                cornerRadius = 20f
+                setStroke(2, Color.parseColor("#00ACC1"))
             }
             setOnClickListener {
                 val targetLang = getTargetLanguage?.invoke() ?: "ES"
@@ -236,24 +214,22 @@ class TranslationDetailDialog(
             }
         }
 
-        // Copy button in Miku Teal
         val copyBtn = TextView(context).apply {
             text = "📋 Copiar"
-            textSize = 12.5f
-            setTextColor(Color.parseColor("#39C5BB"))
+            textSize = 13f
+            setTextColor(Color.parseColor("#6200EE"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding((16 * density).toInt(), (10 * density).toInt(), (16 * density).toInt(), (10 * density).toInt())
+            setPadding(20, 12, 20, 12)
             val p = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                marginStart = (8 * density).toInt()
+                marginStart = 8
             }
             layoutParams = p
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#2639C5BB"))
-                cornerRadius = 14f * density
-                setStroke((1.5f * density).toInt(), Color.parseColor("#39C5BB"))
+                setColor(Color.parseColor("#1A6200EE"))
+                cornerRadius = 20f
             }
             setOnClickListener {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -268,16 +244,15 @@ class TranslationDetailDialog(
             layoutParams = p
         }
 
-        // Confirm "Listo" CTA
         val okBtn = TextView(context).apply {
             text = "Listo"
-            textSize = 12.5f
-            setTextColor(Color.parseColor("#0B1326"))
+            textSize = 13f
+            setTextColor(Color.WHITE)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding((20 * density).toInt(), (10 * density).toInt(), (20 * density).toInt(), (10 * density).toInt())
+            setPadding(24, 12, 24, 12)
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#39C5BB"))
-                cornerRadius = 14f * density
+                setColor(Color.parseColor("#6200EE"))
+                cornerRadius = 20f
             }
             setOnClickListener {
                 ttsManager?.stop()

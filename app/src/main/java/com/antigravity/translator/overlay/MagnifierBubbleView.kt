@@ -47,26 +47,26 @@ class MagnifierBubbleView(
     private var isDragging: Boolean = false
 
     private val reticlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#39C5BB") // Signature Vocaloid Teal
+        color = Color.parseColor("#00E5FF") // Neon Cyan
         style = Paint.Style.STROKE
         strokeWidth = 2f * density
     }
 
     private val reticleFillPaint = Paint().apply {
-        color = Color.parseColor("#1A39C5BB") // Subtle glowing cyan tint
+        color = Color.parseColor("#2600E5FF") // 15% transparent tint
         style = Paint.Style.FILL
     }
 
     init {
         setWillNotDraw(false)
 
-        // Circular bubble background: Deep cyber slate with glowing Miku Teal border
+        // Circular bubble background
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(Color.parseColor("#E6171B24"))
-            setStroke((2.5f * density).toInt(), Color.parseColor("#39C5BB"))
+            setColor(Color.parseColor("#F20D47A1")) // Deep vibrant blue
+            setStroke((2.5f * density).toInt(), Color.parseColor("#00E5FF"))
         }
-        elevation = 18f
+        elevation = 16f
 
         // Center Magnifier / Target Search Icon
         val icon = ImageView(context).apply {
@@ -76,11 +76,11 @@ class MagnifierBubbleView(
             }
             layoutParams = p
             setImageResource(android.R.drawable.ic_menu_search)
-            setColorFilter(Color.parseColor("#39C5BB"))
+            setColorFilter(Color.WHITE)
         }
         addView(icon)
 
-        // Top-right close chip in Miku Accent Magenta
+        // Small top-right close chip
         val closeBadge = ImageView(context).apply {
             val badgeSize = (16 * density).toInt()
             val p = LayoutParams(badgeSize, badgeSize).apply {
@@ -91,8 +91,8 @@ class MagnifierBubbleView(
             layoutParams = p
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#E040FB"))
-                setStroke((1.5f * density).toInt(), Color.parseColor("#12131A"))
+                setColor(Color.parseColor("#FF5252"))
+                setStroke((1.5f * density).toInt(), Color.WHITE)
             }
             setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
             setColorFilter(Color.WHITE)
