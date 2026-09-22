@@ -36,7 +36,7 @@ object MangaBubbleClusterer {
         val validBlocks = blocks.filter {
             val w = it.boundingBox.right - it.boundingBox.left
             val h = it.boundingBox.bottom - it.boundingBox.top
-            it.text.trim().isNotEmpty() && w > 8 && h > 8
+            it.text.trim().isNotEmpty() && ((w >= 6 && h >= 4) || (w >= 4 && h >= 6))
         }
 
         if (validBlocks.isEmpty()) return emptyList()
@@ -51,7 +51,8 @@ object MangaBubbleClusterer {
         }
         val usesSpacedWords = if (!hasCjk) true else (readingProfile?.usesSpacedWords ?: !isTategaki)
         val clusters = mutableListOf<MutableCluster>()
-        val maxVerticalGapPx = (24 * density).toInt()
+        val verticalGapMultiplier = if (readingProfile == ReadingProfile.MANGA) 1.35f else 1.0f
+        val maxVerticalGapPx = (24 * density * verticalGapMultiplier).toInt()
         val maxHorizontalGapPx = (32 * density).toInt()
 
         // Initial spatial grouping: sort primarily top-to-bottom, secondarily left-to-right
@@ -64,7 +65,7 @@ object MangaBubbleClusterer {
             var matchedCluster: MutableCluster? = null
 
             for (cluster in clusters) {
-                if (cluster.isNear(block.boundingBox, maxVerticalGapPx, maxHorizontalGapPx)) {
+                if (cluster.canMergeWith(block.boundingBox, isTategaki, density, readingProfile, maxVerticalGapPx, maxHorizontalGapPx)) {
                     matchedCluster = cluster
                     break
                 }
@@ -85,7 +86,7 @@ object MangaBubbleClusterer {
                 for (j in i + 1 until clusters.size) {
                     val c1 = clusters[i]
                     val c2 = clusters[j]
-                    if (c1.isNear(c2.bounds, maxVerticalGapPx / 2, maxHorizontalGapPx / 2)) {
+                    if (c1.canMergeWith(c2.bounds, isTategaki, density, readingProfile, maxVerticalGapPx / 2, maxHorizontalGapPx / 2)) {
                         c1.mergeWith(c2)
                         clusters.removeAt(j)
                         merged = true
@@ -156,37 +157,33 @@ object MangaBubbleClusterer {
             bottom = firstBlock.boundingBox.bottom
         }
         val textPieces = mutableListOf<TextPiece>()
-        val textSizes = mutableListOf<Float>()
 
         init {
             val b = firstBlock.boundingBox
-            textPieces.add(TextPiece(firstBlock.text.trim(), b.top, b.left, b.right, b.bottom))
-            if (firstBlock.originalTextSizePx > 0f) {
-                textSizes.add(firstBlock.originalTextSizePx)
-            }
+            textPieces.add(TextPiece(firstBlock.text.trim(), b.top, b.left, b.right, b.bottom, firstBlock.originalTextSizePx))
         }
 
         fun add(block: DetectedTextBlock) {
             unionRect(bounds, block.boundingBox)
             val b = block.boundingBox
-            textPieces.add(TextPiece(block.text.trim(), b.top, b.left, b.right, b.bottom))
-            if (block.originalTextSizePx > 0f) {
-                textSizes.add(block.originalTextSizePx)
-            }
+            textPieces.add(TextPiece(block.text.trim(), b.top, b.left, b.right, b.bottom, block.originalTextSizePx))
         }
 
         fun mergeWith(other: MutableCluster) {
             unionRect(bounds, other.bounds)
             textPieces.addAll(other.textPieces)
-            textSizes.addAll(other.textSizes)
         }
 
+        /**
+         * Computes the weighted average font size across all merged lines,
+         * ensuring longer narrative dialogue dominates over short punctuation marks.
+         */
         fun getAverageTextSize(): Float {
-            return if (textSizes.isNotEmpty()) {
-                textSizes.average().toFloat()
-            } else {
-                0f
-            }
+            val validPieces = textPieces.filter { it.textSizePx > 0f }
+            if (validPieces.isEmpty()) return 0f
+            val totalWeight = validPieces.sumOf { it.text.length.coerceAtLeast(1) }
+            val weightedSum = validPieces.sumOf { (it.textSizePx * it.text.length.coerceAtLeast(1)).toDouble() }
+            return (weightedSum / totalWeight).toFloat()
         }
 
         private fun unionRect(target: Rect, source: Rect) {
@@ -203,15 +200,118 @@ object MangaBubbleClusterer {
         }
 
         /**
+         * Enforces strict clustering constraints to prevent distinct dialogue bubbles from merging:
+         * 1. Bounding Box Proportion Guard:
+         *    In Manga mode, speech bubbles are predominantly tall or oval.
+         *    If merging two candidate blocks would create width > height * 1.5, reject the merge.
+         * 2. Strict Spatial Distance Limits:
+         *    - Vertical (Manga/Tategaki): horizontal gap must be < 1.2 * columnWidth.
+         *      Columns must share >= 30% vertical span, unless continuation within the same column.
+         *    - Horizontal (Manhwa/Comic): vertical line gap must be < 0.8 * lineHeight.
+         */
+        fun canMergeWith(
+            rect: Rect,
+            isTategaki: Boolean,
+            density: Float,
+            readingProfile: ReadingProfile?,
+            maxVerticalGapPx: Int,
+            maxHorizontalGapPx: Int
+        ): Boolean {
+            val unionLeft = kotlin.math.min(bounds.left, rect.left)
+            val unionTop = kotlin.math.min(bounds.top, rect.top)
+            val unionRight = kotlin.math.max(bounds.right, rect.right)
+            val unionBottom = kotlin.math.max(bounds.bottom, rect.bottom)
+            val unionWidth = unionRight - unionLeft
+            val unionHeight = unionBottom - unionTop
+
+            // 1. Proportion Guard in Manga Tategaki mode: reject abnormally wide merged bubbles
+            if (isTategaki && unionWidth > unionHeight * 1.5f) {
+                return false
+            }
+
+            // 2. Strict Spatial Distance Limits
+            if (isTategaki) {
+                val b1Width = (bounds.right - bounds.left).coerceAtLeast(1)
+                val b2Width = (rect.right - rect.left).coerceAtLeast(1)
+                val columnWidth = kotlin.math.min(b1Width, b2Width).toFloat().coerceAtLeast(8f * density)
+
+                val hGap = if (bounds.left > rect.right) bounds.left - rect.right else if (rect.left > bounds.right) rect.left - bounds.right else 0
+                val vGap = if (bounds.top > rect.bottom) bounds.top - rect.bottom else if (rect.top > bounds.bottom) rect.top - bounds.bottom else 0
+
+                // Two lines/blocks can ONLY be merged if horizontal gap < 1.2 * columnWidth
+                val maxAllowedHGap = 1.2f * columnWidth
+                if (hGap > maxAllowedHGap) {
+                    return false
+                }
+
+                // Check if they are continuation fragments aligned within the exact same vertical column
+                val center1X = (bounds.left + bounds.right) / 2
+                val center2X = (rect.left + rect.right) / 2
+                val horizontalSpanOverlap = kotlin.math.max(0, kotlin.math.min(bounds.right, rect.right) - kotlin.math.max(bounds.left, rect.left))
+                val inSameColumn = kotlin.math.abs(center1X - center2X) <= (columnWidth * 0.35f).toInt() &&
+                        horizontalSpanOverlap >= (columnWidth * 0.60f).toInt()
+
+                if (inSameColumn) {
+                    // Vertical continuation within same column: allow up to vertical tolerance
+                    return vGap <= maxVerticalGapPx
+                }
+
+                // Different vertical columns: require at least 30% vertical span overlap
+                val verticalSpanOverlap = kotlin.math.max(0, kotlin.math.min(bounds.bottom, rect.bottom) - kotlin.math.max(bounds.top, rect.top))
+                val minHeight = kotlin.math.min(bounds.bottom - bounds.top, rect.bottom - rect.top)
+                return minHeight > 0 && verticalSpanOverlap > 0.30f * minHeight
+            } else {
+                val b1Height = (bounds.bottom - bounds.top).coerceAtLeast(1)
+                val b2Height = (rect.bottom - rect.top).coerceAtLeast(1)
+                val lineHeight = kotlin.math.min(b1Height, b2Height).toFloat().coerceAtLeast(8f * density)
+
+                val vGap = if (bounds.top > rect.bottom) bounds.top - rect.bottom else if (rect.top > bounds.bottom) rect.top - bounds.bottom else 0
+                val hGap = if (bounds.left > rect.right) bounds.left - rect.right else if (rect.left > bounds.right) rect.left - bounds.right else 0
+
+                // Two blocks can ONLY be merged if vertical line gap < 0.8 * lineHeight
+                val maxAllowedVGap = 0.8f * lineHeight
+                if (vGap > maxAllowedVGap) {
+                    return false
+                }
+
+                val horizontalSpanOverlap = kotlin.math.max(0, kotlin.math.min(bounds.right, rect.right) - kotlin.math.max(bounds.left, rect.left))
+                val minWidth = kotlin.math.min(bounds.right - bounds.left, rect.right - rect.left)
+
+                val isInlineWord = vGap <= (4 * density).toInt() && hGap <= maxHorizontalGapPx
+                val isStackedLine = (minWidth > 0 && horizontalSpanOverlap >= 0.20f * minWidth) || hGap <= (12 * density).toInt()
+
+                return isInlineWord || isStackedLine
+            }
+        }
+
+        /**
          * Discards micro furigana ruby text and builds a single coherent paragraph
          * ordered according to the language reading model.
          */
         fun buildUnifiedText(isTategaki: Boolean, usesSpacedWords: Boolean = !isTategaki): String {
-            // 1. Furigana & noise filtering: discard micro-rectangles < 40% of average cluster height
+            // 1. Furigana & noise filtering: discard micro-rectangles < 20% of average cluster height,
+            // never discarding small bounding boxes aligned vertically within an active column (e.g. "一", "つ", "。")
             val candidatePieces = if (textPieces.size >= 2) {
                 val avgHeight = textPieces.map { (it.bottom - it.top).toDouble() }.average()
-                val minHeightThreshold = avgHeight * 0.40
-                val filtered = textPieces.filter { (it.bottom - it.top) >= minHeightThreshold }
+                val minHeightThreshold = avgHeight * 0.20
+                val filtered = textPieces.filter { piece ->
+                    val pieceHeight = piece.bottom - piece.top
+                    if (pieceHeight >= minHeightThreshold) {
+                        true
+                    } else if (isTategaki) {
+                        val pieceCenterX = (piece.left + piece.right) / 2
+                        textPieces.any { other ->
+                            if (other === piece) return@any false
+                            val otherCenterX = (other.left + other.right) / 2
+                            val otherWidth = (other.right - other.left).coerceAtLeast(1)
+                            val colTolerance = (otherWidth * 0.5f).toInt().coerceAtLeast(8)
+                            kotlin.math.abs(pieceCenterX - otherCenterX) <= colTolerance ||
+                                    (piece.left < other.right && piece.right > other.left)
+                        }
+                    } else {
+                        false
+                    }
+                }
                 if (filtered.isNotEmpty()) filtered else textPieces
             } else {
                 textPieces
@@ -307,6 +407,7 @@ object MangaBubbleClusterer {
         val top: Int,
         val left: Int,
         val right: Int,
-        val bottom: Int
+        val bottom: Int,
+        val textSizePx: Float = 0f
     )
 }

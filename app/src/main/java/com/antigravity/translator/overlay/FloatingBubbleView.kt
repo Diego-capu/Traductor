@@ -57,7 +57,6 @@ class FloatingBubbleView(
 
     private val circleIcon: ImageView
     private val borderOverlay: View
-    private val statusIndicator: View
 
     init {
         // Dark circular base with shadow elevation
@@ -67,9 +66,11 @@ class FloatingBubbleView(
         }
         elevation = 14f
 
-        // Animated GIF ImageView with circular clipping
+        val bubbleSize = bubbleSizePx
+
+        // Circular clipped ImageView displaying the animated Miku GIF
         circleIcon = ImageView(context).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+            layoutParams = LayoutParams(bubbleSize, bubbleSize)
             scaleType = ImageView.ScaleType.CENTER_CROP
             outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: Outline) {
@@ -91,28 +92,8 @@ class FloatingBubbleView(
             isFocusable = false
         }
 
-        // Small green/amber/red status dot on top-right edge
-        statusIndicator = View(context).apply {
-            val dotSize = (11 * density).toInt()
-            val p = LayoutParams(dotSize, dotSize).apply {
-                gravity = Gravity.TOP or Gravity.END
-                topMargin = (2 * density).toInt()
-                marginEnd = (2 * density).toInt()
-            }
-            layoutParams = p
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#00E676")) // Active green
-                setStroke(2, Color.WHITE)
-            }
-            elevation = 15f
-            isClickable = false
-            isFocusable = false
-        }
-
         addView(circleIcon)
         addView(borderOverlay)
-        addView(statusIndicator)
 
         loadAnimatedGif()
         setupDragAndClickBehavior()
@@ -245,11 +226,11 @@ class FloatingBubbleView(
     }
 
     fun updateState(state: ServiceState) {
-        val dotColor = when (state) {
-            ServiceState.RUNNING -> Color.parseColor("#00E676") // Green
-            ServiceState.PAUSED -> Color.parseColor("#FFD600")  // Amber
-            ServiceState.STOPPED -> Color.parseColor("#FF5252") // Red
+        val strokeColor = when (state) {
+            ServiceState.RUNNING -> Color.parseColor("#99FFFFFF")
+            ServiceState.PAUSED -> Color.parseColor("#B3FFD600")
+            ServiceState.STOPPED -> Color.parseColor("#B3FF5252")
         }
-        (statusIndicator.background as? GradientDrawable)?.setColor(dotColor)
+        (borderOverlay.background as? GradientDrawable)?.setStroke((2 * density).toInt(), strokeColor)
     }
 }

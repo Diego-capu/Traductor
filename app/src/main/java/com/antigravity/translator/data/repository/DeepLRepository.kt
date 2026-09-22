@@ -113,16 +113,17 @@ class DeepLRepository(
                 appPreferences.cumulativeTotalRequests += 1
                 _telemetryState.update { it.copy(totalRequests = it.totalRequests + 1) }
 
+                val normalizedTargetLang = normalizeTargetLanguage(targetLang)
                 val supportsFormality = setOf("DE", "FR", "IT", "ES", "NL", "PL", "PT", "PT-BR", "PT-PT", "RU", "JA")
                 val profileFormality = appPreferences.readingProfile.defaultFormality
-                val formalityValue = if (supportsFormality.contains(targetLang.uppercase()) && profileFormality != null) {
+                val formalityValue = if (supportsFormality.contains(normalizedTargetLang) && profileFormality != null) {
                     profileFormality
                 } else null
 
                 val request = DeepLTranslationRequest(
                     text = uncachedUniqueTexts,
-                    targetLang = targetLang,
-                    sourceLang = if (sourceLang.isNotBlank()) sourceLang else null,
+                    targetLang = normalizedTargetLang,
+                    sourceLang = if (sourceLang.isNotBlank()) sourceLang.trim().uppercase() else null,
                     formality = formalityValue
                 )
 
@@ -261,5 +262,11 @@ class DeepLRepository(
                 isOfflineQuota = true
             )
         }
+    }
+
+    fun normalizeTargetLanguage(lang: String): String = when (lang.trim().uppercase()) {
+        "EN" -> "EN-US"
+        "PT" -> "PT-PT"
+        else -> lang.trim().uppercase()
     }
 }

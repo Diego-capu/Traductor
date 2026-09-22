@@ -73,11 +73,35 @@ class DynamicFontSizeTest {
     }
 
     @Test
+    fun testClusterWeightedAverageOriginalTextSizes() {
+        val block1 = DetectedTextBlock(
+            text = "0123456789", // 10 chars
+            boundingBox = rect(50, 50, 200, 80),
+            originalTextSizePx = 30.0f
+        )
+        val block2 = DetectedTextBlock(
+            text = "A".repeat(90), // 90 chars
+            boundingBox = rect(50, 85, 200, 115),
+            originalTextSizePx = 20.0f
+        )
+
+        val clusters = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = listOf(block1, block2),
+            density = 1.0f,
+            sourceLanguage = "EN"
+        )
+
+        assertEquals(1, clusters.size)
+        // Weighted average: (30.0 * 10 + 20.0 * 90) / 100 = 21.0f
+        assertEquals(21.0f, clusters[0].originalTextSizePx, 0.001f)
+    }
+
+    @Test
     fun testVerticalTextLineHeightRatioCalculation() {
-        // Tategaki column: height is 300, width is 40 -> height > width * 1.5
+        // Tategaki column: height is 300, width is 40 -> height > width * 1.4
         val columnWidth = 40f
         val columnHeight = 300f
-        val isVertical = columnHeight > (columnWidth * 1.5f)
+        val isVertical = columnHeight > (columnWidth * 1.4f)
         assertTrue(isVertical)
 
         val calculatedFontSize = columnWidth * 0.85f
@@ -86,10 +110,26 @@ class DynamicFontSizeTest {
         // Horizontal line: width is 300, height is 40 -> not vertical
         val horizWidth = 300f
         val horizHeight = 40f
-        val isHorizontal = horizHeight <= (horizWidth * 1.5f)
+        val isHorizontal = horizHeight <= (horizWidth * 1.4f)
         assertTrue(isHorizontal)
 
         val horizFontSize = horizHeight * 0.85f
         assertEquals(34.0f, horizFontSize, 0.001f)
+    }
+
+    @Test
+    fun testAutoSizeBoundsAlwaysStrictlyAscending() {
+        val density = 2.5f
+        val testSizes = listOf(0f, 5f, 10f, 12f, 15f, 18f, 20f, 25f, 50f, 100f)
+
+        for (size in testSizes) {
+            val minTextSize = (10 * density).toInt().coerceAtLeast(12)
+            val maxTextSize = if (size > 0f) {
+                size.toInt().coerceAtLeast(minTextSize + 4)
+            } else {
+                (17 * density).toInt().coerceAtLeast(minTextSize + 4)
+            }
+            assertTrue("maxTextSize ($maxTextSize) must be strictly greater than minTextSize ($minTextSize)", maxTextSize > minTextSize)
+        }
     }
 }

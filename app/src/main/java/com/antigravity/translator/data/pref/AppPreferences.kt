@@ -78,6 +78,10 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_IS_MANUAL_MODE, true) // Default: Manual / On-Demand
         set(value) = prefs.edit().putBoolean(KEY_IS_MANUAL_MODE, value).apply()
 
+    var hasCompletedInitialCrop: Boolean
+        get() = prefs.getBoolean(KEY_HAS_COMPLETED_INITIAL_CROP, false)
+        set(value) = prefs.edit().putBoolean(KEY_HAS_COMPLETED_INITIAL_CROP, value).apply()
+
     var lastServerUsedChars: Long
         get() = prefs.getLong(KEY_LAST_SERVER_USED_CHARS, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_SERVER_USED_CHARS, value).apply()
@@ -182,5 +186,6 @@ class AppPreferences(context: Context) {
         private const val KEY_CROP_RIGHT = "key_crop_right"
         private const val KEY_CROP_BOTTOM = "key_crop_bottom"
         private const val KEY_IS_CROP_ENABLED = "key_is_crop_enabled"
+        private const val KEY_HAS_COMPLETED_INITIAL_CROP = "key_has_completed_initial_crop"
     }
 }

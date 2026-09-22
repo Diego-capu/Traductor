@@ -5,9 +5,11 @@ import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
@@ -26,10 +28,15 @@ class ScreenCaptureEngine(
 ) {
     private val tag = "ScreenCaptureEngine"
     private val lock = ReentrantLock()
+    private val cacheLock = Any()
+
+    private val captureThread = HandlerThread("ScreenCaptureThread").apply { start() }
+    private val backgroundHandler = Handler(captureThread.looper)
 
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
-    private val backgroundHandler = Handler(Looper.getMainLooper())
+    @Volatile
+    private var lastCachedBitmap: Bitmap? = null
 
     var screenWidth: Int = 0
         private set
@@ -68,6 +75,34 @@ class ScreenCaptureEngine(
     }
 
     /**
+     * Safely converts an Image buffer into a Bitmap, handling stride row padding.
+     */
+    private fun imageToBitmap(image: Image): Bitmap? {
+        val planes = image.planes
+        if (planes.isEmpty()) return null
+
+        val buffer = planes[0].buffer
+        val pixelStride = planes[0].pixelStride
+        val rowStride = planes[0].rowStride
+        val rowPadding = rowStride - pixelStride * screenWidth
+
+        val paddedBitmap = Bitmap.createBitmap(
+            screenWidth + (rowPadding / pixelStride),
+            screenHeight,
+            Bitmap.Config.ARGB_8888
+        )
+        paddedBitmap.copyPixelsFromBuffer(buffer)
+
+        return if (rowPadding > 0) {
+            val cropped = Bitmap.createBitmap(paddedBitmap, 0, 0, screenWidth, screenHeight)
+            paddedBitmap.recycle()
+            cropped
+        } else {
+            paddedBitmap
+        }
+    }
+
+    /**
      * Safely initializes ImageReader and VirtualDisplay.
      * Note: maxImages is capped at 2 to eliminate frame queue buildup.
      */
@@ -75,12 +110,35 @@ class ScreenCaptureEngine(
         lock.withLock {
             try {
                 // Initialize ImageReader with RGBA_8888 and maxImages = 2
-                imageReader = ImageReader.newInstance(
+                val reader = ImageReader.newInstance(
                     screenWidth,
                     screenHeight,
                     PixelFormat.RGBA_8888,
                     2
                 )
+                imageReader = reader
+
+                // Set listener on background thread to continuously cache latest frame
+                // and free Image buffers immediately to prevent starvation on static screens.
+                reader.setOnImageAvailableListener({ r ->
+                    try {
+                        val img = r.acquireLatestImage() ?: return@setOnImageAvailableListener
+                        try {
+                            val bitmap = imageToBitmap(img)
+                            if (bitmap != null) {
+                                synchronized(cacheLock) {
+                                    val old = lastCachedBitmap
+                                    lastCachedBitmap = bitmap
+                                    old?.recycle()
+                                }
+                            }
+                        } finally {
+                            img.close()
+                        }
+                    } catch (e: Exception) {
+                        Log.w(tag, "Background frame caching error: ${e.message}")
+                    }
+                }, backgroundHandler)
 
                 virtualDisplay = mediaProjection.createVirtualDisplay(
                     VIRTUAL_DISPLAY_NAME,
@@ -88,13 +146,13 @@ class ScreenCaptureEngine(
                     screenHeight,
                     screenDensity,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    imageReader?.surface,
+                    reader.surface,
                     null,
                     backgroundHandler
                 )
 
                 onDimensionsChanged?.invoke(screenWidth, screenHeight)
-                Log.d(tag, "VirtualDisplay created successfully")
+                Log.d(tag, "VirtualDisplay created successfully with continuous frame caching")
             } catch (e: Exception) {
                 Log.e(tag, "Failed to create VirtualDisplay or ImageReader", e)
             }
@@ -118,6 +176,12 @@ class ScreenCaptureEngine(
                 imageReader?.close()
                 imageReader = null
 
+                // Clear cached frame
+                synchronized(cacheLock) {
+                    lastCachedBitmap?.recycle()
+                    lastCachedBitmap = null
+                }
+
                 // 3. Recalculate metrics
                 setupDimensions()
 
@@ -130,65 +194,55 @@ class ScreenCaptureEngine(
     }
 
     /**
-     * Grabs the latest frame from the ImageReader buffer.
+     * Grabs the latest frame from the ImageReader buffer or the background frame cache.
      *
-     * Correctly handles rowStride / pixelStride padding to eliminate graphic shearing,
-     * and guarantees that image.close() is executed in a finally block to prevent
-     * buffer starvation.
+     * Handles static screen starvation: when screen is stationary, acquireLatestImage()
+     * returns null, so this falls back to a clean copy of the last cached frame.
      */
     fun acquireLatestFrame(): Bitmap? {
         lock.withLock {
             val reader = imageReader ?: return null
-            val image = try {
-                reader.acquireLatestImage() ?: reader.acquireNextImage()
-            } catch (e: Exception) {
-                Log.w(tag, "acquireLatestImage/acquireNextImage failed", e)
-                null
-            } ?: return null
 
+            // 1. Try to acquire the freshest frame if available right now
+            var extractedBitmap: Bitmap? = null
             try {
-                val planes = image.planes
-                if (planes.isEmpty()) return null
-
-                val buffer = planes[0].buffer
-                val pixelStride = planes[0].pixelStride
-                val rowStride = planes[0].rowStride
-                val rowPadding = rowStride - pixelStride * screenWidth
-
-                // Allocate bitmap accounting for stride padding
-                val paddedBitmap = Bitmap.createBitmap(
-                    screenWidth + (rowPadding / pixelStride),
-                    screenHeight,
-                    Bitmap.Config.ARGB_8888
-                )
-                paddedBitmap.copyPixelsFromBuffer(buffer)
-
-                // If padding exists, crop out exact screen dimension without distortion
-                val finalBitmap = if (rowPadding > 0) {
-                    val cropped = Bitmap.createBitmap(paddedBitmap, 0, 0, screenWidth, screenHeight)
-                    paddedBitmap.recycle()
-                    cropped
-                } else {
-                    paddedBitmap
+                val image = reader.acquireLatestImage() ?: reader.acquireNextImage()
+                if (image != null) {
+                    try {
+                        extractedBitmap = imageToBitmap(image)
+                        if (extractedBitmap != null) {
+                            synchronized(cacheLock) {
+                                val old = lastCachedBitmap
+                                lastCachedBitmap = extractedBitmap.copy(extractedBitmap.config ?: Bitmap.Config.ARGB_8888, false)
+                                old?.recycle()
+                            }
+                        }
+                    } finally {
+                        image.close()
+                    }
                 }
+            } catch (e: Exception) {
+                Log.w(tag, "Direct acquireImage attempt failed, checking cached frame: ${e.message}")
+            }
 
-                return finalBitmap
-            } catch (t: Throwable) {
-                Log.e(tag, "Error extracting bitmap from ImageReader buffer", t)
-                return null
-            } finally {
-                // Critical: Close image immediately to return buffer to pool
-                try {
-                    image.close()
-                } catch (e: Exception) {
-                    Log.w(tag, "Error closing image buffer", e)
+            if (extractedBitmap != null) {
+                return extractedBitmap
+            }
+
+            // 2. Fallback to cached frame if screen was stationary/static
+            synchronized(cacheLock) {
+                val cached = lastCachedBitmap
+                if (cached != null && !cached.isRecycled) {
+                    return cached.copy(cached.config ?: Bitmap.Config.ARGB_8888, false)
                 }
             }
+
+            return null
         }
     }
 
     /**
-     * Releases VirtualDisplay and closes ImageReader.
+     * Releases VirtualDisplay and closes ImageReader and background thread.
      */
     fun release() {
         lock.withLock {
@@ -197,6 +251,16 @@ class ScreenCaptureEngine(
                 virtualDisplay = null
                 imageReader?.close()
                 imageReader = null
+
+                synchronized(cacheLock) {
+                    lastCachedBitmap?.recycle()
+                    lastCachedBitmap = null
+                }
+
+                try {
+                    captureThread.quitSafely()
+                } catch (_: Exception) {}
+
                 Log.d(tag, "ScreenCaptureEngine released successfully")
             } catch (e: Exception) {
                 Log.w(tag, "Error releasing capture engine resources", e)

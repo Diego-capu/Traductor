@@ -54,7 +54,7 @@ class OverlayWindowManager(
     private var dismissBackdropView: FrameLayout? = null
     private var isDismissBackdropAttached = false
 
-    private var cropOverlayView: RegionCropOverlayView? = null
+    private var cropOverlayView: RegionSelectionOverlayView? = null
     private var isCropOverlayAttached = false
 
     private val menuView = FloatingMenuView(
@@ -173,9 +173,9 @@ class OverlayWindowManager(
                     val rect = block.boundingBox
                     if (rect.width() <= 0 || rect.height() <= 0) continue
 
-                    // Match the exact bounding box of the original text with compact padding
-                    val paddingX = (4 * displayMetrics.density).toInt()
-                    val paddingY = (3 * displayMetrics.density).toInt()
+                    // Match the exact bounding box of the original text with compact 2dp padding
+                    val paddingX = (2 * displayMetrics.density).toInt().coerceAtLeast(2)
+                    val paddingY = (2 * displayMetrics.density).toInt().coerceAtLeast(2)
 
                     val bubbleX = kotlin.math.max(0, rect.left - paddingX)
                     val bubbleY = kotlin.math.max(0, rect.top - paddingY)
@@ -367,7 +367,7 @@ class OverlayWindowManager(
                     PixelFormat.TRANSLUCENT
                 )
 
-                val cropView = RegionCropOverlayView(
+                val cropView = RegionSelectionOverlayView(
                     context = context,
                     initialCropRect = initialRect,
                     onCropConfirmed = { confirmedRect ->
@@ -386,9 +386,9 @@ class OverlayWindowManager(
                 windowManager.addView(cropView, params)
                 cropOverlayView = cropView
                 isCropOverlayAttached = true
-                Log.d(tag, "RegionCropOverlayView attached")
+                Log.d(tag, "RegionSelectionOverlayView attached")
             } catch (e: Exception) {
-                Log.e(tag, "Failed to attach RegionCropOverlayView", e)
+                Log.e(tag, "Failed to attach RegionSelectionOverlayView", e)
             }
         }
     }
@@ -404,7 +404,7 @@ class OverlayWindowManager(
             cropOverlayView = null
             isCropOverlayAttached = false
             bubbleView?.visibility = View.VISIBLE
-            Log.d(tag, "RegionCropOverlayView dismissed")
+            Log.d(tag, "RegionSelectionOverlayView dismissed")
         }
     }
 

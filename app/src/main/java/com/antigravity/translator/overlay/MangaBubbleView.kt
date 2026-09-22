@@ -45,12 +45,23 @@ class MangaBubbleView(
         val boxWidth = block.boundingBox.width()
         val boxHeight = block.boundingBox.height()
 
-        val autoSizeMinTextSizeInPx = 18 // ~9sp minimum readable threshold
-        val autoSizeMaxTextSizeInPx = if (block.originalTextSizePx > 0f) {
-            block.originalTextSizePx.toInt().coerceAtLeast(autoSizeMinTextSizeInPx)
+        // Strict bounding constraints matching original detected speech bubble box
+        layoutParams = LayoutParams(
+            if (boxWidth > 0) boxWidth else LayoutParams.WRAP_CONTENT,
+            if (boxHeight > 0) boxHeight else LayoutParams.WRAP_CONTENT
+        )
+
+        val minLegibleSizePx = 14 // Minimum legible size in px (~7-8sp)
+        val originalSizePx = if (block.originalTextSizePx > 0f) {
+            block.originalTextSizePx
         } else {
-            (17 * density).toInt().coerceAtLeast(autoSizeMinTextSizeInPx)
+            16f * density
         }
+        val maxTextSizePx = originalSizePx.toInt().coerceAtLeast(minLegibleSizePx)
+
+        // Minimal internal padding (2dp to 4dp) to maximize dialogue text fill
+        val padX = (3 * density).toInt().coerceIn(2, 6)
+        val padY = (2 * density).toInt().coerceIn(2, 4)
 
         textView = TextView(context).apply {
             text = block.translatedText.ifEmpty { block.originalText }
@@ -58,28 +69,34 @@ class MangaBubbleView(
             gravity = Gravity.CENTER
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             includeFontPadding = false
-            setPadding(6, 4, 6, 4)
-            setLineSpacing(1f, 1.0f)
+            setPadding(padX, padY, padX, padY)
+            setLineSpacing(0.5f, 0.95f)
 
-            // Precision #2: Dimension constraints so auto-sizing downscales properly without unbounded expansion
+            // Strict dimension constraints so text never overflows original bubble coordinates
             if (boxWidth > 0) {
-                maxWidth = boxWidth + (8 * density).toInt()
+                maxWidth = boxWidth
             }
             if (boxHeight > 0) {
-                maxHeight = boxHeight + (6 * density).toInt()
+                maxHeight = boxHeight
             }
 
-            // Set primary font size matching original detected text height
-            setTextSize(TypedValue.COMPLEX_UNIT_PX, autoSizeMaxTextSizeInPx.toFloat())
+            // Base font size matching physical detected character height 1:1
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, originalSizePx)
 
-            // Auto-size text to fill the bubble neatly with originalTextSizePx as maximum
-            TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
-                this,
-                autoSizeMinTextSizeInPx,
-                autoSizeMaxTextSizeInPx,
-                1,
-                TypedValue.COMPLEX_UNIT_PX
-            )
+            // Auto-size text: exact 1:1 original size as upper ceiling, smoothly downscaling if translation is longer
+            if (maxTextSizePx > minLegibleSizePx) {
+                try {
+                    TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+                        this,
+                        minLegibleSizePx,
+                        maxTextSizePx,
+                        1,
+                        TypedValue.COMPLEX_UNIT_PX
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.w("MangaBubbleView", "Auto-sizing fallback: ${e.message}")
+                }
+            }
         }
 
         val params = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply {

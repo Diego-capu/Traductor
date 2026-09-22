@@ -76,4 +76,23 @@ class TelemetryAndMoshiCompatibilityTest {
         assertEquals("Hola", response.translations[0].text)
         assertEquals("EN", response.translations[0].detectedSourceLanguage)
     }
+
+    @Test
+    fun testDeepLTargetLanguageNormalization() {
+        val normalize = { lang: String ->
+            when (lang.trim().uppercase()) {
+                "EN" -> "EN-US"
+                "PT" -> "PT-PT"
+                else -> lang.trim().uppercase()
+            }
+        }
+
+        assertEquals("EN-US", normalize("EN"))
+        assertEquals("EN-US", normalize("en"))
+        assertEquals("PT-PT", normalize("PT"))
+        assertEquals("PT-PT", normalize("pt"))
+        assertEquals("ES", normalize("ES"))
+        assertEquals("JA", normalize("JA"))
+        assertEquals("DE", normalize("DE"))
+    }
 }

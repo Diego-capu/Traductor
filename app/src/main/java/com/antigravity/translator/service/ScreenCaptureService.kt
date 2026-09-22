@@ -229,8 +229,12 @@ class ScreenCaptureService : Service() {
             mediaProjection = projection
         )
 
-        // 4. Show overlays
-        overlayWindowManager.showOverlays()
+        // 4. Show crop selector on initial startup, or show overlays if already configured
+        if (!appPreferences.hasCompletedInitialCrop) {
+            showCropSelectorOverlay()
+        } else {
+            overlayWindowManager.showOverlays()
+        }
 
         // 5. Update state
         _serviceState.value = ServiceState.RUNNING
@@ -254,6 +258,7 @@ class ScreenCaptureService : Service() {
             onConfirmed = { confirmedRect ->
                 appPreferences.saveCropRegion(confirmedRect)
                 activeCropRegion = confirmedRect
+                appPreferences.hasCompletedInitialCrop = true
                 Toast.makeText(this, "Área de recorte guardada", Toast.LENGTH_SHORT).show()
                 overlayWindowManager.showOverlays()
                 if (!appPreferences.isManualMode && _serviceState.value == ServiceState.RUNNING) {
@@ -263,6 +268,7 @@ class ScreenCaptureService : Service() {
             onFullScreen = {
                 appPreferences.saveCropRegion(null)
                 activeCropRegion = null
+                appPreferences.hasCompletedInitialCrop = true
                 Toast.makeText(this, "Traducción en pantalla completa fijada", Toast.LENGTH_SHORT).show()
                 overlayWindowManager.showOverlays()
                 if (!appPreferences.isManualMode && _serviceState.value == ServiceState.RUNNING) {
@@ -360,8 +366,10 @@ class ScreenCaptureService : Service() {
                 Log.d(tag, "translateScreenOnce: detected ${detectedBlocks.size} bubbles from ${rawBlocks.size} raw blocks")
 
                 if (detectedBlocks.isEmpty()) {
+                    val ocrError = ocrEngine.lastOcrError
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(this@ScreenCaptureService, "No se detectó texto en la pantalla", Toast.LENGTH_SHORT).show()
+                        val message = ocrError ?: "No se detectó texto en la pantalla"
+                        Toast.makeText(this@ScreenCaptureService, message, Toast.LENGTH_SHORT).show()
                     }
                     overlayWindowManager.clearCanvas()
                     return@launch
@@ -435,8 +443,10 @@ class ScreenCaptureService : Service() {
                 val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density, sourceLanguage = srcLang, readingProfile = profile)
 
                 if (detectedBlocks.isEmpty()) {
+                    val ocrError = ocrEngine.lastOcrError
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(this@ScreenCaptureService, "No se detectó texto en la pantalla", Toast.LENGTH_SHORT).show()
+                        val message = ocrError ?: "No se detectó texto en la pantalla"
+                        Toast.makeText(this@ScreenCaptureService, message, Toast.LENGTH_SHORT).show()
                     }
                     return@launch
                 }

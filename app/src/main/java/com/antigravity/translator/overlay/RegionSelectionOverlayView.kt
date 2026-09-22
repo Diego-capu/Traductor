@@ -24,7 +24,7 @@ import android.widget.TextView
  * corner/edge touch handles, dimension indicator, and zero emojis.
  */
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
-class RegionCropOverlayView(
+class RegionSelectionOverlayView(
     context: Context,
     initialCropRect: Rect?,
     private val onCropConfirmed: (Rect) -> Unit,

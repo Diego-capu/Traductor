@@ -34,6 +34,9 @@ class OcrEngine {
     private var activeProfile: ReadingProfile = ReadingProfile.MANGA
     private var recognizer: TextRecognizer? = null
     private val recognizerLock = Any()
+    @Volatile
+    var lastOcrError: String? = null
+        private set
 
     init {
         recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -94,8 +97,8 @@ class OcrEngine {
     }
 
     /**
-     * Preprocesses manga frame buffer (grayscale + contrast enhancement)
-     * to eliminate screentones and shadows, ensuring crisp text strokes for OCR.
+     * Preprocesses manga frame buffer (soft grayscale + balanced +15% contrast)
+     * to eliminate screentones and shadows without empasting dense kanji radicals.
      */
     private fun preprocessMangaBitmap(source: Bitmap): Bitmap {
         val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
@@ -105,7 +108,7 @@ class OcrEngine {
         val colorMatrix = ColorMatrix()
         colorMatrix.setSaturation(0f)
 
-        val contrast = 1.35f
+        val contrast = 1.15f // Balanced +15% contrast to preserve delicate kanji strokes
         val translate = (-0.5f * contrast + 0.5f) * 255f
         val contrastMatrix = ColorMatrix(floatArrayOf(
             contrast, 0f, 0f, 0f, translate,
@@ -166,8 +169,8 @@ class OcrEngine {
                         if (lBox != null && lBox.height() > 0 && lBox.width() > 0) {
                             val lHeight = lBox.height().toFloat()
                             val lWidth = lBox.width().toFloat()
-                            if (lHeight > lWidth * 1.5f) {
-                                // Vertical Tategaki: use element height if available, or column width * 0.85f
+                            if (lHeight > lWidth * 1.4f) {
+                                // Vertical Tategaki: Japanese characters are square columns -> width * 0.85f
                                 val elemHeights = line.elements.mapNotNull { it.boundingBox?.height()?.takeIf { h -> h > 0 } }
                                 if (elemHeights.isNotEmpty()) {
                                     elemHeights.average().toFloat() * 0.85f
@@ -187,7 +190,7 @@ class OcrEngine {
                         lineHeights.average().toFloat()
                     } else {
                         val lineCount = kotlin.math.max(1, block.lines.size)
-                        (validRect.height().toFloat() / lineCount * 0.85f).coerceAtLeast(18f)
+                        (validRect.height().toFloat() / lineCount * 0.85f).coerceAtLeast(14f)
                     }
 
                     detectedBlocks.add(
@@ -201,6 +204,13 @@ class OcrEngine {
             }
             detectedBlocks
         } catch (e: Exception) {
+            val msg = e.message ?: ""
+            if (msg.contains("download", ignoreCase = true) ||
+                msg.contains("Waiting for", ignoreCase = true) ||
+                msg.contains("model", ignoreCase = true)
+            ) {
+                lastOcrError = "Descargando modelo de reconocimiento OCR en segundo plano... Intenta en unos segundos."
+            }
             Log.w(tag, "OCR pass failed: ${e.message}", e)
             emptyList()
         }
@@ -246,6 +256,7 @@ class OcrEngine {
      */
     suspend fun processFrame(bitmap: Bitmap): List<DetectedTextBlock> = withContext(Dispatchers.Default) {
         if (bitmap.width <= 0 || bitmap.height <= 0) return@withContext emptyList()
+        lastOcrError = null
 
         val inputImage = InputImage.fromBitmap(bitmap, 0)
         val activeRecognizer = synchronized(recognizerLock) {
