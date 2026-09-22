@@ -40,6 +40,11 @@
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
 
+        <!-- Google ML Kit OCR Dependencies (automatic download for Latin, Japanese, Korean, Chinese) -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr,ocr_japanese,ocr_korean,ocr_chinese" />
+
     </application>
 
 </manifest>

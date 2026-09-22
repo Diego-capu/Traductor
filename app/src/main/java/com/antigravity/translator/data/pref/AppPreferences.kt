@@ -7,6 +7,8 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
+import com.antigravity.translator.domain.model.ReadingProfile
+
 /**
  * Handles persistent encrypted storage for API keys and user preferences.
  */
@@ -28,6 +30,17 @@ class AppPreferences(context: Context) {
         Log.w(TAG, "EncryptedSharedPreferences failed, falling back to standard prefs", e)
         context.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)
     }
+
+    var readingProfile: ReadingProfile
+        get() {
+            val name = prefs.getString(KEY_READING_PROFILE, ReadingProfile.MANGA.name) ?: ReadingProfile.MANGA.name
+            return try {
+                ReadingProfile.valueOf(name)
+            } catch (e: Exception) {
+                ReadingProfile.MANGA
+            }
+        }
+        set(value) = prefs.edit().putString(KEY_READING_PROFILE, value.name).apply()
 
     var apiKey: String
         get() = prefs.getString(KEY_API_KEY, DEFAULT_API_KEY) ?: DEFAULT_API_KEY
@@ -150,6 +163,7 @@ class AppPreferences(context: Context) {
         private const val TAG = "AppPreferences"
         private const val PREFS_FILENAME = "translator_secure_prefs"
         private const val DEFAULT_API_KEY = "f28b396c-fa20-4b60-a87e-a9c82bc26e2c:fx"
+        private const val KEY_READING_PROFILE = "key_reading_profile"
         private const val KEY_API_KEY = "key_deepl_api_key"
         private const val KEY_SOURCE_LANG = "key_source_lang"
         private const val KEY_TARGET_LANG = "key_target_lang"

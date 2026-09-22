@@ -9,5 +9,6 @@ data class TelemetryData(
     val sessionCharactersSent: Long = 0L,
     val sessionCharactersSavedByCache: Long = 0L,
     val totalRequests: Int = 0,
-    val failedRequests: Int = 0
+    val failedRequests: Int = 0,
+    val isOfflineQuota: Boolean = false
 )

@@ -14,13 +14,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import com.antigravity.translator.domain.model.ReadingProfile
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
@@ -97,6 +100,7 @@ class MainActivity : ComponentActivity() {
                         onRefreshUsageClicked = viewModel::refreshUsage,
                         onSourceSelected = viewModel::onSourceLanguageSelected,
                         onTargetSelected = viewModel::onTargetLanguageSelected,
+                        onReadingProfileSelected = viewModel::onReadingProfileChanged,
                         onModeToggled = viewModel::onModeToggled,
                         onRequestOverlayPermission = { requestOverlayPermission() },
                         onRequestNotificationPermission = { requestNotificationPermission() },
@@ -144,8 +148,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestScreenCapture() {
-        val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        mediaProjectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+        val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        mediaProjectionLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
     }
 
     private fun startTranslationService(resultCode: Int, data: Intent) {
@@ -188,6 +192,7 @@ fun TranslatorMainScreen(
     onRefreshUsageClicked: () -> Unit,
     onSourceSelected: (String) -> Unit,
     onTargetSelected: (String) -> Unit,
+    onReadingProfileSelected: (ReadingProfile) -> Unit = {},
     onModeToggled: (Boolean) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
@@ -267,6 +272,105 @@ fun TranslatorMainScreen(
                         isGranted = uiState.isNotificationPermissionGranted,
                         onRequest = onRequestNotificationPermission
                     )
+                }
+            }
+        }
+
+        // Reading Format Selector Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Formato de Lectura",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            text = uiState.readingProfile.title,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Ajusta el OCR, orientación espacial y concatenación léxica según el origen de la obra.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // 2x2 Grid of Profiles
+                val profiles = ReadingProfile.entries
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (rowChunk in profiles.chunked(2)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            for (profile in rowChunk) {
+                                val isSelected = uiState.readingProfile == profile
+                                Card(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { onReadingProfileSelected(profile) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected) {
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        } else {
+                                            MaterialTheme.colorScheme.surface
+                                        }
+                                    ),
+                                    border = BorderStroke(
+                                        width = if (isSelected) 1.5.dp else 1.dp,
+                                        color = if (isSelected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                        }
+                                    )
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = profile.title,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = when (profile) {
+                                                ReadingProfile.MANGA -> "Vertical RTL"
+                                                ReadingProfile.MANHWA -> "Horizontal LTR"
+                                                ReadingProfile.MANHUA -> "Horizontal CJK"
+                                                ReadingProfile.COMIC -> "Occidental LTR"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -414,7 +518,11 @@ fun TranslatorMainScreen(
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE040FB))
                     ) {
                         Text(
-                            text = "$percentRemaining% libre",
+                            text = if (telemetry.isOfflineQuota && telemetry.serverCharacterLimit > 0L) {
+                                "$percentRemaining% libre (Offline)"
+                            } else {
+                                "$percentRemaining% libre"
+                            },
                             color = Color(0xFFE040FB),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,

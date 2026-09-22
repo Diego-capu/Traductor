@@ -28,6 +28,7 @@ import com.antigravity.translator.TranslatorApplication
 import com.antigravity.translator.data.pref.AppPreferences
 import com.antigravity.translator.data.repository.DeepLRepository
 import com.antigravity.translator.domain.model.DetectedTextBlock
+import com.antigravity.translator.domain.model.ReadingProfile
 import com.antigravity.translator.domain.model.ServiceState
 import com.antigravity.translator.engine.capture.ScreenCaptureEngine
 import com.antigravity.translator.engine.ocr.MangaBubbleClusterer
@@ -91,6 +92,7 @@ class ScreenCaptureService : Service() {
         appPreferences = app.appPreferences
         deepLRepository = app.deepLRepository
         ocrEngine = OcrEngine()
+        ocrEngine.configure(userSourceLang = appPreferences.sourceLanguage, profile = appPreferences.readingProfile)
         ttsManager = TtsManager(this)
         activeCropRegion = appPreferences.getSavedCropRegion()
 
@@ -131,7 +133,13 @@ class ScreenCaptureService : Service() {
             ttsManager = ttsManager,
             getTargetLanguage = { appPreferences.targetLanguage },
             getSourceLanguage = { appPreferences.sourceLanguage },
-            initialIsManualMode = appPreferences.isManualMode
+            initialIsManualMode = appPreferences.isManualMode,
+            initialReadingProfile = appPreferences.readingProfile,
+            onReadingProfileChanged = { newProfile ->
+                appPreferences.readingProfile = newProfile
+                ocrEngine.configure(userSourceLang = appPreferences.sourceLanguage, profile = newProfile)
+                Toast.makeText(this, "Formato: ${newProfile.title}", Toast.LENGTH_SHORT).show()
+            }
         )
 
         createNotificationChannel()
@@ -227,9 +235,6 @@ class ScreenCaptureService : Service() {
         // 5. Update state
         _serviceState.value = ServiceState.RUNNING
         overlayWindowManager.updateControlState(ServiceState.RUNNING)
-
-        // Show the interactive crop selection box whenever translation starts
-        showCropSelectorOverlay()
     }
 
     /**
@@ -319,7 +324,11 @@ class ScreenCaptureService : Service() {
             // Small delay to ensure any transient touch highlights fade
             delay(150)
 
-            val rawBitmap = engine.acquireLatestFrame()
+            var rawBitmap = engine.acquireLatestFrame()
+            if (rawBitmap == null) {
+                delay(200)
+                rawBitmap = engine.acquireLatestFrame()
+            }
             if (rawBitmap == null) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@ScreenCaptureService, "No se pudo capturar la pantalla. Intenta nuevamente.", Toast.LENGTH_SHORT).show()
@@ -327,9 +336,19 @@ class ScreenCaptureService : Service() {
                 return@launch
             }
 
+            if (ocrEngine.isBitmapBlank(rawBitmap)) {
+                Log.w(tag, "Captured frame is blank/black (FLAG_SECURE or DRM protection)")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@ScreenCaptureService, "La pantalla capturada está oscura o protegida por la aplicación (FLAG_SECURE)", Toast.LENGTH_LONG).show()
+                }
+                rawBitmap.recycle()
+                return@launch
+            }
+
             val frame = extractCropSubFrame(rawBitmap)
+            val profile = appPreferences.readingProfile
             val srcLang = appPreferences.sourceLanguage
-            ocrEngine.setSourceLanguage(srcLang)
+            ocrEngine.configure(userSourceLang = srcLang, profile = profile)
 
             try {
                 // 1. Detect text, filter out status bar / floating toolbar, and cluster speech bubbles
@@ -337,7 +356,8 @@ class ScreenCaptureService : Service() {
                 val screenBlocks = offsetBlocksToScreenCoordinates(rawBlocks, frame.offsetX, frame.offsetY)
                 val cleanBlocks = filterIgnoredScreenRegions(screenBlocks)
                 val density = resources.displayMetrics.density
-                val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density, sourceLanguage = srcLang)
+                val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density, sourceLanguage = srcLang, readingProfile = profile)
+                Log.d(tag, "translateScreenOnce: detected ${detectedBlocks.size} bubbles from ${rawBlocks.size} raw blocks")
 
                 if (detectedBlocks.isEmpty()) {
                     withContext(Dispatchers.Main) {
@@ -348,7 +368,7 @@ class ScreenCaptureService : Service() {
                 }
 
                 // 2. Translate uncached texts (and pull cached ones instantly from disk)
-                val result = deepLRepository.translateBlocks(detectedBlocks)
+                val result = deepLRepository.translateBlocks(detectedBlocks, sourceLang = srcLang)
 
                 result.onSuccess { translatedBlocks ->
                     lastDetectedBlocks = detectedBlocks
@@ -381,7 +401,11 @@ class ScreenCaptureService : Service() {
 
             delay(150)
 
-            val rawBitmap = engine.acquireLatestFrame()
+            var rawBitmap = engine.acquireLatestFrame()
+            if (rawBitmap == null) {
+                delay(200)
+                rawBitmap = engine.acquireLatestFrame()
+            }
             if (rawBitmap == null) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@ScreenCaptureService, "No se pudo capturar la pantalla", Toast.LENGTH_SHORT).show()
@@ -389,16 +413,26 @@ class ScreenCaptureService : Service() {
                 return@launch
             }
 
+            if (ocrEngine.isBitmapBlank(rawBitmap)) {
+                Log.w(tag, "Captured frame is blank/black (FLAG_SECURE or DRM protection)")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@ScreenCaptureService, "La pantalla capturada está oscura o protegida por la aplicación (FLAG_SECURE)", Toast.LENGTH_LONG).show()
+                }
+                rawBitmap.recycle()
+                return@launch
+            }
+
             val frame = extractCropSubFrame(rawBitmap)
+            val profile = appPreferences.readingProfile
             val srcLang = appPreferences.sourceLanguage
-            ocrEngine.setSourceLanguage(srcLang)
+            ocrEngine.configure(userSourceLang = srcLang, profile = profile)
 
             try {
                 val rawBlocks = ocrEngine.processFrame(frame.bitmap)
                 val screenBlocks = offsetBlocksToScreenCoordinates(rawBlocks, frame.offsetX, frame.offsetY)
                 val cleanBlocks = filterIgnoredScreenRegions(screenBlocks)
                 val density = resources.displayMetrics.density
-                val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density, sourceLanguage = srcLang)
+                val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density, sourceLanguage = srcLang, readingProfile = profile)
 
                 if (detectedBlocks.isEmpty()) {
                     withContext(Dispatchers.Main) {
@@ -470,16 +504,22 @@ class ScreenCaptureService : Service() {
         val engine = captureEngine ?: return
         val rawBitmap = engine.acquireLatestFrame() ?: return
 
+        if (ocrEngine.isBitmapBlank(rawBitmap)) {
+            rawBitmap.recycle()
+            return
+        }
+
         val frame = extractCropSubFrame(rawBitmap)
+        val profile = appPreferences.readingProfile
         val srcLang = appPreferences.sourceLanguage
-        ocrEngine.setSourceLanguage(srcLang)
+        ocrEngine.configure(userSourceLang = srcLang, profile = profile)
 
         try {
             val rawBlocks = ocrEngine.processFrame(frame.bitmap)
             val screenBlocks = offsetBlocksToScreenCoordinates(rawBlocks, frame.offsetX, frame.offsetY)
             val cleanBlocks = filterIgnoredScreenRegions(screenBlocks)
             val density = resources.displayMetrics.density
-            val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density, sourceLanguage = srcLang)
+            val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density, sourceLanguage = srcLang, readingProfile = profile)
 
             if (detectedBlocks.isEmpty()) {
                 if (lastDetectedBlocks.isNotEmpty()) {
@@ -493,7 +533,7 @@ class ScreenCaptureService : Service() {
                 return
             }
 
-            val translationResult = deepLRepository.translateBlocks(detectedBlocks)
+            val translationResult = deepLRepository.translateBlocks(detectedBlocks, sourceLang = srcLang)
 
             translationResult.onSuccess { translatedBlocks ->
                 lastDetectedBlocks = detectedBlocks

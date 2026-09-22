@@ -14,5 +14,6 @@ data class TranslatedBlock(
     val id: String,
     val originalText: String,
     val translatedText: String,
-    val boundingBox: Rect
+    val boundingBox: Rect,
+    val originalTextSizePx: Float = 0f
 )

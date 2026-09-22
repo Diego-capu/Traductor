@@ -18,6 +18,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.antigravity.translator.R
+import com.antigravity.translator.domain.model.ReadingProfile
 
 /**
  * Modern 2-Column Grid Floating Action Menu (Launcher Card Style).
@@ -36,9 +37,12 @@ class FloatingMenuView(
     private val onCropAdjustClicked: () -> Unit = {},
     private val onSettingsClicked: () -> Unit,
     private val onCloseClicked: () -> Unit,
-    initialIsManualMode: Boolean = true
+    initialIsManualMode: Boolean = true,
+    initialReadingProfile: ReadingProfile = ReadingProfile.MANGA,
+    private val onReadingProfileChanged: (ReadingProfile) -> Unit = {}
 ) {
     private var isManualMode: Boolean = initialIsManualMode
+    private var currentReadingProfile: ReadingProfile = initialReadingProfile
     private var isAttached: Boolean = false
     private var lastDismissedTime: Long = 0L
     private var menuContainer: FrameLayout? = null
@@ -46,6 +50,7 @@ class FloatingMenuView(
 
     private var modeSquircle: FrameLayout? = null
     private var modeLabel: TextView? = null
+    private var profileLabel: TextView? = null
 
     private val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -71,7 +76,7 @@ class FloatingMenuView(
         val screenHeight = displayMetrics.heightPixels
 
         val estMenuWidth = (204 * density).toInt()
-        val estMenuHeight = (250 * density).toInt()
+        val estMenuHeight = (295 * density).toInt()
 
         // Determine whether to place menu to the RIGHT or LEFT of the bubble
         // Matches screenshot 1 (bubble left -> menu right) & screenshot 2 (bubble right -> menu left)
@@ -259,6 +264,8 @@ class FloatingMenuView(
         row3.addView(createSpacer(horizontalGapPx))
         row3.addView(closeItem)
 
+        val formatChip = createFormatChipItem()
+        menuCard.addView(formatChip)
         menuCard.addView(row1)
         menuCard.addView(row2)
         menuCard.addView(row3)
@@ -287,12 +294,64 @@ class FloatingMenuView(
             isAttached = false
             modeSquircle = null
             modeLabel = null
+            profileLabel = null
         }
     }
 
     fun setMode(manual: Boolean) {
         isManualMode = manual
         updateModeVisuals()
+    }
+
+    fun setReadingProfile(profile: ReadingProfile) {
+        currentReadingProfile = profile
+        updateProfileVisuals()
+    }
+
+    private fun updateProfileVisuals() {
+        profileLabel?.text = "FORMATO: ${currentReadingProfile.title.uppercase()}"
+    }
+
+    private fun createFormatChipItem(): View {
+        val chipContainer = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                (34 * density).toInt()
+            ).apply {
+                bottomMargin = (10 * density).toInt()
+            }
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1A39C5BB"))
+                cornerRadius = 12 * density
+                setStroke((1 * density).toInt(), Color.parseColor("#39C5BB"))
+            }
+            isClickable = true
+            isFocusable = true
+
+            setOnClickListener {
+                currentReadingProfile = currentReadingProfile.next()
+                updateProfileVisuals()
+                onReadingProfileChanged(currentReadingProfile)
+            }
+        }
+
+        val textView = TextView(context).apply {
+            text = "FORMATO: ${currentReadingProfile.title.uppercase()}"
+            setTextColor(Color.parseColor("#39C5BB"))
+            textSize = 11f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            isSingleLine = true
+            ellipsize = TextUtils.TruncateAt.END
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+        profileLabel = textView
+        chipContainer.addView(textView)
+
+        return chipContainer
     }
 
     private fun updateModeVisuals() {

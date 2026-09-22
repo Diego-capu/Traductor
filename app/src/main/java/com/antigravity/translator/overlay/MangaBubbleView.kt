@@ -41,6 +41,17 @@ class MangaBubbleView(
         background = bubbleBackground
         elevation = 6f
 
+        val density = context.resources.displayMetrics.density
+        val boxWidth = block.boundingBox.width()
+        val boxHeight = block.boundingBox.height()
+
+        val autoSizeMinTextSizeInPx = 18 // ~9sp minimum readable threshold
+        val autoSizeMaxTextSizeInPx = if (block.originalTextSizePx > 0f) {
+            block.originalTextSizePx.toInt().coerceAtLeast(autoSizeMinTextSizeInPx)
+        } else {
+            (17 * density).toInt().coerceAtLeast(autoSizeMinTextSizeInPx)
+        }
+
         textView = TextView(context).apply {
             text = block.translatedText.ifEmpty { block.originalText }
             setTextColor(Color.parseColor("#0A0A0A"))
@@ -50,13 +61,24 @@ class MangaBubbleView(
             setPadding(6, 4, 6, 4)
             setLineSpacing(1f, 1.0f)
 
-            // Auto-size text to fill the bubble neatly
+            // Precision #2: Dimension constraints so auto-sizing downscales properly without unbounded expansion
+            if (boxWidth > 0) {
+                maxWidth = boxWidth + (8 * density).toInt()
+            }
+            if (boxHeight > 0) {
+                maxHeight = boxHeight + (6 * density).toInt()
+            }
+
+            // Set primary font size matching original detected text height
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, autoSizeMaxTextSizeInPx.toFloat())
+
+            // Auto-size text to fill the bubble neatly with originalTextSizePx as maximum
             TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
                 this,
-                7,  // min text size in sp
-                17, // max text size in sp
-                1,  // step in sp
-                TypedValue.COMPLEX_UNIT_SP
+                autoSizeMinTextSizeInPx,
+                autoSizeMaxTextSizeInPx,
+                1,
+                TypedValue.COMPLEX_UNIT_PX
             )
         }
 
@@ -79,5 +101,14 @@ class MangaBubbleView(
                 false
             }
         }
+    }
+
+    /**
+     * Cleans up child views and listeners when recycling or detaching the overlay.
+     */
+    fun cleanup() {
+        setOnClickListener(null)
+        setOnLongClickListener(null)
+        removeAllViews()
     }
 }

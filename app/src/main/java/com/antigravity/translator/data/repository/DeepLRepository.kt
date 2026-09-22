@@ -114,7 +114,10 @@ class DeepLRepository(
                 _telemetryState.update { it.copy(totalRequests = it.totalRequests + 1) }
 
                 val supportsFormality = setOf("DE", "FR", "IT", "ES", "NL", "PL", "PT", "PT-BR", "PT-PT", "RU", "JA")
-                val formalityValue = if (supportsFormality.contains(targetLang.uppercase())) "less" else null
+                val profileFormality = appPreferences.readingProfile.defaultFormality
+                val formalityValue = if (supportsFormality.contains(targetLang.uppercase()) && profileFormality != null) {
+                    profileFormality
+                } else null
 
                 val request = DeepLTranslationRequest(
                     text = uncachedUniqueTexts,
@@ -184,7 +187,8 @@ class DeepLRepository(
                 id = block.id,
                 originalText = block.text,
                 translatedText = translatedText,
-                boundingBox = block.boundingBox
+                boundingBox = block.boundingBox,
+                originalTextSizePx = block.originalTextSizePx
             )
         }
 
@@ -194,10 +198,12 @@ class DeepLRepository(
     /**
      * Queries DeepL server quota (/v2/usage) and updates live telemetry.
      * Fails gracefully with Result.failure to preserve local cache and avoid interrupting capture pipeline.
+     * On network error, timeout, or invalid response, preserves last known values and flags isOfflineQuota.
      */
     suspend fun fetchRemoteUsage(): Result<DeepLUsageResponse> = withContext(Dispatchers.IO) {
         val apiKey = appPreferences.apiKey.trim()
         if (apiKey.isEmpty()) {
+            applyOfflineTelemetryFallback()
             return@withContext Result.failure(IllegalStateException("DeepL API Key no configurada"))
         }
 
@@ -214,22 +220,46 @@ class DeepLRepository(
                     _telemetryState.update { current ->
                         current.copy(
                             serverUsedCharacters = usage.characterCount,
-                            serverCharacterLimit = usage.characterLimit
+                            serverCharacterLimit = usage.characterLimit,
+                            isOfflineQuota = false
                         )
                     }
                     Log.d(tag, "DeepL Quota fetched: ${usage.characterCount} / ${usage.characterLimit}")
                     Result.success(usage)
                 } else {
+                    applyOfflineTelemetryFallback()
                     Result.failure(IllegalStateException("Respuesta de uso vacía"))
                 }
             } else {
                 val msg = "Error al consultar cuota DeepL (${response.code()})"
                 Log.w(tag, msg)
+                applyOfflineTelemetryFallback()
                 Result.failure(RuntimeException(msg))
             }
         } catch (e: Exception) {
             Log.w(tag, "Fallo al consultar /v2/usage: ${e.message}", e)
+            applyOfflineTelemetryFallback()
             Result.failure(e)
+        }
+    }
+
+    private fun applyOfflineTelemetryFallback() {
+        _telemetryState.update { current ->
+            val usedChars = if (current.serverUsedCharacters > 0L) {
+                current.serverUsedCharacters
+            } else {
+                appPreferences.lastServerUsedChars
+            }
+            val charLimit = if (current.serverCharacterLimit > 0L) {
+                current.serverCharacterLimit
+            } else {
+                appPreferences.lastServerCharLimit
+            }
+            current.copy(
+                serverUsedCharacters = usedChars,
+                serverCharacterLimit = charLimit,
+                isOfflineQuota = true
+            )
         }
     }
 }

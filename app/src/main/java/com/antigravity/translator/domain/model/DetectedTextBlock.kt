@@ -12,7 +12,8 @@ import android.graphics.Rect
 data class DetectedTextBlock(
     val id: String = java.util.UUID.randomUUID().toString(),
     val text: String,
-    val boundingBox: Rect
+    val boundingBox: Rect,
+    val originalTextSizePx: Float = 0f
 ) {
     /**
      * Checks geometric and textual equivalence to determine if this text

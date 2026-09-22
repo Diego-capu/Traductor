@@ -13,6 +13,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import com.antigravity.translator.domain.model.ReadingProfile
 import com.antigravity.translator.domain.model.ServiceState
 import com.antigravity.translator.domain.model.TranslatedBlock
 import com.antigravity.translator.tts.TtsManager
@@ -38,7 +39,9 @@ class OverlayWindowManager(
     private val ttsManager: TtsManager? = null,
     private val getTargetLanguage: (() -> String)? = null,
     private val getSourceLanguage: (() -> String)? = null,
-    initialIsManualMode: Boolean = true
+    initialIsManualMode: Boolean = true,
+    initialReadingProfile: ReadingProfile = ReadingProfile.MANGA,
+    private val onReadingProfileChanged: ((ReadingProfile) -> Unit)? = null
 ) {
     private val tag = "OverlayWindowManager"
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -48,7 +51,7 @@ class OverlayWindowManager(
     private var isBubbleAttached = false
 
     private var currentIsManualMode: Boolean = initialIsManualMode
-    private var dismissBackdropView: View? = null
+    private var dismissBackdropView: FrameLayout? = null
     private var isDismissBackdropAttached = false
 
     private var cropOverlayView: RegionCropOverlayView? = null
@@ -68,7 +71,11 @@ class OverlayWindowManager(
         },
         onSettingsClicked = onOpenSettingsRequested,
         onCloseClicked = onStopRequested,
-        initialIsManualMode = initialIsManualMode
+        initialIsManualMode = initialIsManualMode,
+        initialReadingProfile = initialReadingProfile,
+        onReadingProfileChanged = { profile ->
+            onReadingProfileChanged?.invoke(profile)
+        }
     )
 
     private val activeBubbleViews = mutableListOf<MangaBubbleView>()
@@ -199,7 +206,7 @@ class OverlayWindowManager(
                             val targetLang = getTargetLanguage?.invoke() ?: "ES"
                             val textToSpeak = clickedBlock.translatedText.ifEmpty { clickedBlock.originalText }
                             ttsManager?.speak(textToSpeak, targetLang)
-                            Toast.makeText(context, "🔊 Reproduciendo audio...", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Reproduciendo audio...", Toast.LENGTH_SHORT).show()
                         }
                     )
 
@@ -270,6 +277,7 @@ class OverlayWindowManager(
         if (!isDismissBackdropAttached) return
         dismissBackdropView?.let {
             try {
+                it.removeAllViews()
                 windowManager.removeView(it)
             } catch (e: Exception) {
                 // Ignore if detached
@@ -293,6 +301,7 @@ class OverlayWindowManager(
     private fun clearBubbleViews() {
         for (view in activeBubbleViews) {
             try {
+                view.cleanup()
                 windowManager.removeView(view)
             } catch (e: Exception) {
                 // Ignore if already detached
@@ -317,6 +326,10 @@ class OverlayWindowManager(
             removeDismissBackdrop()
         }
         menuView.setMode(isManual)
+    }
+
+    fun updateReadingProfile(profile: ReadingProfile) {
+        menuView.setReadingProfile(profile)
     }
 
     /**

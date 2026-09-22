@@ -12,10 +12,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+import com.antigravity.translator.domain.model.ReadingProfile
+
 data class MainUiState(
     val apiKey: String = "",
     val sourceLanguage: String = "",
     val targetLanguage: String = "ES",
+    val readingProfile: ReadingProfile = ReadingProfile.MANGA,
     val isOverlayPermissionGranted: Boolean = false,
     val isNotificationPermissionGranted: Boolean = false,
     val isServiceRunning: Boolean = false,
@@ -33,6 +36,7 @@ class MainViewModel(
             apiKey = appPreferences.apiKey,
             sourceLanguage = appPreferences.sourceLanguage,
             targetLanguage = appPreferences.targetLanguage,
+            readingProfile = appPreferences.readingProfile,
             isProAccount = appPreferences.isProAccount,
             isManualMode = appPreferences.isManualMode
         )
@@ -87,6 +91,13 @@ class MainViewModel(
         }
         if (newKey.isNotBlank()) {
             refreshUsage()
+        }
+    }
+
+    fun onReadingProfileChanged(profile: ReadingProfile) {
+        appPreferences.readingProfile = profile
+        _uiState.update {
+            it.copy(readingProfile = profile)
         }
     }
 

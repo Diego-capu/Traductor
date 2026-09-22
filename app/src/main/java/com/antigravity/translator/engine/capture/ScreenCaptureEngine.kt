@@ -140,9 +140,9 @@ class ScreenCaptureEngine(
         lock.withLock {
             val reader = imageReader ?: return null
             val image = try {
-                reader.acquireLatestImage()
+                reader.acquireLatestImage() ?: reader.acquireNextImage()
             } catch (e: Exception) {
-                Log.w(tag, "acquireLatestImage failed", e)
+                Log.w(tag, "acquireLatestImage/acquireNextImage failed", e)
                 null
             } ?: return null
 
@@ -173,12 +173,16 @@ class ScreenCaptureEngine(
                 }
 
                 return finalBitmap
-            } catch (e: Exception) {
-                Log.e(tag, "Error extracting bitmap from ImageReader buffer", e)
+            } catch (t: Throwable) {
+                Log.e(tag, "Error extracting bitmap from ImageReader buffer", t)
                 return null
             } finally {
                 // Critical: Close image immediately to return buffer to pool
-                image.close()
+                try {
+                    image.close()
+                } catch (e: Exception) {
+                    Log.w(tag, "Error closing image buffer", e)
+                }
             }
         }
     }

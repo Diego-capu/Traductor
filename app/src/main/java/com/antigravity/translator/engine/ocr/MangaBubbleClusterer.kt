@@ -2,32 +2,33 @@ package com.antigravity.translator.engine.ocr
 
 import android.graphics.Rect
 import com.antigravity.translator.domain.model.DetectedTextBlock
+import com.antigravity.translator.domain.model.ReadingProfile
 import java.util.UUID
 
 /**
- * Intelligent spatial text clusterer designed for Manga, Manhwa, and Comic speech bubbles.
+ * Spatial clustering engine designed for comic / manga dialogue segmentation.
  *
- * Implements:
- * 1. Tategaki reading order (Right-to-Left columns, Top-to-Bottom lines) strictly for Japanese (JA)
- *    and Chinese (ZH), preserving standard Left-to-Right order for Korean (KO) and Western languages.
- * 2. Furigana & noise micro-box filtering (discards blocks with height < 40% of cluster average).
- * 3. Narrative page order across speech bubbles (Top-to-Bottom by page band, Right-to-Left for Manga).
- * 4. CJK-aware string concatenation avoiding artificial spaces between kanji/kana characters.
+ * Merges adjacent text blocks belonging to the same speech bubble, sorts them
+ * according to reading orientation (Tategaki RTL for Manga, standard horizontal LTR
+ * for Manhwa and Comics), filters micro-box noise and furigana, and unifies fragmented
+ * lines into continuous narrative blocks for machine translation.
  */
 object MangaBubbleClusterer {
 
     /**
-     * Groups fragmented text blocks into unified speech bubble blocks.
+     * Clusters raw OCR text blocks into cohesive manga speech bubbles.
      *
-     * @param blocks Raw detected text blocks from ML Kit
-     * @param density Display density scaling factor
-     * @param sourceLanguage Configured source language code (e.g., "JA", "ZH", "KO", "EN")
+     * @param blocks Raw text blocks detected by ML Kit
+     * @param density Screen density factor
+     * @param sourceLanguage Source language code ("JA", "ZH", "KO", "EN", etc.)
+     * @param readingProfile Selected reading medium profile (Manga, Manhwa, Manhua, Comic)
      * @return Clustered list with 1 unified DetectedTextBlock per speech bubble
      */
     fun clusterMangaBubbles(
         blocks: List<DetectedTextBlock>,
         density: Float = 2.5f,
-        sourceLanguage: String = ""
+        sourceLanguage: String = "",
+        readingProfile: ReadingProfile? = null
     ): List<DetectedTextBlock> {
         if (blocks.size <= 1) return blocks
 
@@ -40,7 +41,15 @@ object MangaBubbleClusterer {
 
         if (validBlocks.isEmpty()) return emptyList()
 
-        val isTategaki = isTategakiLanguage(sourceLanguage, validBlocks)
+        val hasCjk = validBlocks.any { b ->
+            b.text.any { c -> (c in '\u3040'..'\u30ff') || (c in '\u4e00'..'\u9fa5') }
+        }
+        val isTategaki = if (readingProfile != null) {
+            readingProfile.isTategaki && hasCjk
+        } else {
+            isTategakiLanguage(sourceLanguage, validBlocks)
+        }
+        val usesSpacedWords = if (!hasCjk) true else (readingProfile?.usesSpacedWords ?: !isTategaki)
         val clusters = mutableListOf<MutableCluster>()
         val maxVerticalGapPx = (24 * density).toInt()
         val maxHorizontalGapPx = (32 * density).toInt()
@@ -104,7 +113,7 @@ object MangaBubbleClusterer {
 
         // Convert clusters into final unified DetectedTextBlocks with exact bounds
         return sortedClusters.map { cluster ->
-            val unifiedText = cluster.buildUnifiedText(isTategaki)
+            val unifiedText = cluster.buildUnifiedText(isTategaki, usesSpacedWords)
             val exactRect = Rect().apply {
                 left = cluster.bounds.left
                 top = cluster.bounds.top
@@ -114,7 +123,8 @@ object MangaBubbleClusterer {
             DetectedTextBlock(
                 id = UUID.randomUUID().toString(),
                 text = unifiedText,
-                boundingBox = exactRect
+                boundingBox = exactRect,
+                originalTextSizePx = cluster.getAverageTextSize()
             )
         }
     }
@@ -146,21 +156,37 @@ object MangaBubbleClusterer {
             bottom = firstBlock.boundingBox.bottom
         }
         val textPieces = mutableListOf<TextPiece>()
+        val textSizes = mutableListOf<Float>()
 
         init {
             val b = firstBlock.boundingBox
             textPieces.add(TextPiece(firstBlock.text.trim(), b.top, b.left, b.right, b.bottom))
+            if (firstBlock.originalTextSizePx > 0f) {
+                textSizes.add(firstBlock.originalTextSizePx)
+            }
         }
 
         fun add(block: DetectedTextBlock) {
             unionRect(bounds, block.boundingBox)
             val b = block.boundingBox
             textPieces.add(TextPiece(block.text.trim(), b.top, b.left, b.right, b.bottom))
+            if (block.originalTextSizePx > 0f) {
+                textSizes.add(block.originalTextSizePx)
+            }
         }
 
         fun mergeWith(other: MutableCluster) {
             unionRect(bounds, other.bounds)
             textPieces.addAll(other.textPieces)
+            textSizes.addAll(other.textSizes)
+        }
+
+        fun getAverageTextSize(): Float {
+            return if (textSizes.isNotEmpty()) {
+                textSizes.average().toFloat()
+            } else {
+                0f
+            }
         }
 
         private fun unionRect(target: Rect, source: Rect) {
@@ -180,7 +206,7 @@ object MangaBubbleClusterer {
          * Discards micro furigana ruby text and builds a single coherent paragraph
          * ordered according to the language reading model.
          */
-        fun buildUnifiedText(isTategaki: Boolean): String {
+        fun buildUnifiedText(isTategaki: Boolean, usesSpacedWords: Boolean = !isTategaki): String {
             // 1. Furigana & noise filtering: discard micro-rectangles < 40% of average cluster height
             val candidatePieces = if (textPieces.size >= 2) {
                 val avgHeight = textPieces.map { (it.bottom - it.top).toDouble() }.average()
@@ -240,8 +266,8 @@ object MangaBubbleClusterer {
                 if (sb.isEmpty()) {
                     sb.append(currentText)
                 } else {
-                    if (isTategaki) {
-                        // In Japanese/Chinese, do not insert spaces between CJK characters
+                    if (!usesSpacedWords) {
+                        // In Japanese/Chinese: do not insert spaces between CJK characters
                         val lastChar = sb.lastOrNull()
                         val firstChar = currentText.firstOrNull()
 
@@ -254,7 +280,7 @@ object MangaBubbleClusterer {
                             sb.append(" ").append(currentText)
                         }
                     } else {
-                        // In Western / Korean languages: join with spaces or handle hyphens
+                        // In Western / Korean languages (Manhwa / Comic): join with spaces or handle hyphens
                         if (sb.endsWith("-") && !sb.endsWith("--")) {
                             sb.setLength(sb.length - 1) // Remove hyphen wrap
                             sb.append(currentText)

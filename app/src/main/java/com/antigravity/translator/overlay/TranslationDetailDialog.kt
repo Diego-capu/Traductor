@@ -150,7 +150,7 @@ class TranslationDetailDialog(
         }
 
         val origTtsBtn = TextView(context).apply {
-            text = "🔊 Escuchar"
+            text = "Escuchar"
             textSize = 11f
             setTextColor(Color.parseColor("#6200EE"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -162,7 +162,7 @@ class TranslationDetailDialog(
         }
 
         val origCopyBtn = TextView(context).apply {
-            text = "📋 Copiar"
+            text = "Copiar"
             textSize = 11f
             setTextColor(Color.parseColor("#6200EE"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -197,7 +197,7 @@ class TranslationDetailDialog(
         }
 
         val ttsSpeakBtn = TextView(context).apply {
-            text = "🔊 Escuchar"
+            text = "Escuchar"
             textSize = 13f
             setTextColor(Color.parseColor("#00838F"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -215,7 +215,7 @@ class TranslationDetailDialog(
         }
 
         val copyBtn = TextView(context).apply {
-            text = "📋 Copiar"
+            text = "Copiar"
             textSize = 13f
             setTextColor(Color.parseColor("#6200EE"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -292,6 +292,7 @@ class TranslationDetailDialog(
     fun dismiss() {
         rootContainer?.let {
             try {
+                it.removeAllViews()
                 windowManager.removeView(it)
             } catch (e: Exception) {
                 // Ignore if not attached
