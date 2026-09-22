@@ -79,8 +79,11 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.0")
 
-    // Google ML Kit Text Recognition (On-device OCR)
+    // Google ML Kit Text Recognition (On-device OCR: Latin, Japanese, Chinese, Korean)
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
 
     // Networking & DeepL API (Retrofit + OkHttp + Gson)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

@@ -8,6 +8,8 @@ import android.graphics.Outline
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
@@ -26,17 +28,26 @@ import com.antigravity.translator.domain.model.ServiceState
  * Strictly maintains a fixed size (52dp x 52dp) and constant coordinates (x, y).
  * Never resizes, flickers, or shifts when the menu is opened or closed.
  * Plays the animated GIF avatar with circular hardware-accelerated clipping.
+ * Supports quick gestures:
+ * - Single Tap: Opens the HUD launcher menu.
+ * - Double Tap: Immediately triggers translation without opening menus.
  */
 @SuppressLint("ClickableViewAccessibility")
 class FloatingBubbleView(
     context: Context,
     private val windowManager: WindowManager,
     val windowLayoutParams: WindowManager.LayoutParams,
-    private val onBubbleClicked: (bubbleX: Int, bubbleY: Int) -> Unit
+    private val onBubbleSingleTap: (bubbleX: Int, bubbleY: Int) -> Unit,
+    private val onBubbleDoubleTap: () -> Unit
 ) : FrameLayout(context) {
 
     private val density = context.resources.displayMetrics.density
     val bubbleSizePx = (52 * density).toInt()
+
+    private val gestureHandler = Handler(Looper.getMainLooper())
+    private var tapCount = 0
+    private val doubleTapTimeoutMs = 260L
+    private var pendingSingleTapRunnable: Runnable? = null
 
     private var initialX: Int = 0
     private var initialY: Int = 0
@@ -138,9 +149,16 @@ class FloatingBubbleView(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        cancelPendingSingleTap()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             (circleIcon.drawable as? AnimatedImageDrawable)?.stop()
         }
+    }
+
+    private fun cancelPendingSingleTap() {
+        pendingSingleTapRunnable?.let { gestureHandler.removeCallbacks(it) }
+        pendingSingleTapRunnable = null
+        tapCount = 0
     }
 
     private fun setupDragAndClickBehavior() {
@@ -159,7 +177,10 @@ class FloatingBubbleView(
                     val dy = (event.rawY - initialTouchY).toInt()
 
                     if (kotlin.math.abs(dx) > 12 || kotlin.math.abs(dy) > 12) {
-                        isDragging = true
+                        if (!isDragging) {
+                            isDragging = true
+                            cancelPendingSingleTap()
+                        }
                     }
 
                     if (isDragging) {
@@ -175,14 +196,52 @@ class FloatingBubbleView(
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!isDragging) {
-                        // Clean tap without drag: open decoupled menu relative to this bubble's position
-                        onBubbleClicked(windowLayoutParams.x, windowLayoutParams.y)
+                        handleTapGesture()
                     }
                     true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    cancelPendingSingleTap()
+                    isDragging = false
+                    false
                 }
                 else -> false
             }
         }
+    }
+
+    private fun handleTapGesture() {
+        tapCount++
+        if (tapCount == 1) {
+            val tapX = windowLayoutParams.x
+            val tapY = windowLayoutParams.y
+            val runnable = Runnable {
+                tapCount = 0
+                pendingSingleTapRunnable = null
+                onBubbleSingleTap(tapX, tapY)
+            }
+            pendingSingleTapRunnable = runnable
+            gestureHandler.postDelayed(runnable, doubleTapTimeoutMs)
+        } else if (tapCount >= 2) {
+            cancelPendingSingleTap()
+            animateDoubleTapPulse()
+            onBubbleDoubleTap()
+        }
+    }
+
+    private fun animateDoubleTapPulse() {
+        animate()
+            .scaleX(1.22f)
+            .scaleY(1.22f)
+            .setDuration(110)
+            .withEndAction {
+                animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(110)
+                    .start()
+            }
+            .start()
     }
 
     fun updateState(state: ServiceState) {

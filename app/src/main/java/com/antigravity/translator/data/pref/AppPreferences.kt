@@ -2,6 +2,7 @@ package com.antigravity.translator.data.pref
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Rect
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -64,6 +65,87 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_IS_MANUAL_MODE, true) // Default: Manual / On-Demand
         set(value) = prefs.edit().putBoolean(KEY_IS_MANUAL_MODE, value).apply()
 
+    var lastServerUsedChars: Long
+        get() = prefs.getLong(KEY_LAST_SERVER_USED_CHARS, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_SERVER_USED_CHARS, value).apply()
+
+    var lastServerCharLimit: Long
+        get() = prefs.getLong(KEY_LAST_SERVER_CHAR_LIMIT, 500000L) // Default 500k for Free tier
+        set(value) = prefs.edit().putLong(KEY_LAST_SERVER_CHAR_LIMIT, value).apply()
+
+    var cumulativeCharactersSent: Long
+        get() = prefs.getLong(KEY_CUMULATIVE_CHARS_SENT, 0L)
+        set(value) = prefs.edit().putLong(KEY_CUMULATIVE_CHARS_SENT, value).apply()
+
+    var cumulativeCharactersSaved: Long
+        get() = prefs.getLong(KEY_CUMULATIVE_CHARS_SAVED, 0L)
+        set(value) = prefs.edit().putLong(KEY_CUMULATIVE_CHARS_SAVED, value).apply()
+
+    var cumulativeTotalRequests: Int
+        get() = prefs.getInt(KEY_CUMULATIVE_TOTAL_REQUESTS, 0)
+        set(value) = prefs.edit().putInt(KEY_CUMULATIVE_TOTAL_REQUESTS, value).apply()
+
+    var cumulativeFailedRequests: Int
+        get() = prefs.getInt(KEY_CUMULATIVE_FAILED_REQUESTS, 0)
+        set(value) = prefs.edit().putInt(KEY_CUMULATIVE_FAILED_REQUESTS, value).apply()
+
+    var cropLeft: Int
+        get() = prefs.getInt(KEY_CROP_LEFT, -1)
+        set(value) = prefs.edit().putInt(KEY_CROP_LEFT, value).apply()
+
+    var cropTop: Int
+        get() = prefs.getInt(KEY_CROP_TOP, -1)
+        set(value) = prefs.edit().putInt(KEY_CROP_TOP, value).apply()
+
+    var cropRight: Int
+        get() = prefs.getInt(KEY_CROP_RIGHT, -1)
+        set(value) = prefs.edit().putInt(KEY_CROP_RIGHT, value).apply()
+
+    var cropBottom: Int
+        get() = prefs.getInt(KEY_CROP_BOTTOM, -1)
+        set(value) = prefs.edit().putInt(KEY_CROP_BOTTOM, value).apply()
+
+    var isCropEnabled: Boolean
+        get() = prefs.getBoolean(KEY_IS_CROP_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_IS_CROP_ENABLED, value).apply()
+
+    fun getSavedCropRegion(): Rect? {
+        if (!isCropEnabled) return null
+        val left = cropLeft
+        val top = cropTop
+        val right = cropRight
+        val bottom = cropBottom
+        return if (left >= 0 && top >= 0 && right > left && bottom > top) {
+            Rect(left, top, right, bottom)
+        } else {
+            null
+        }
+    }
+
+    fun getLastCropOrNull(): Rect? {
+        val left = cropLeft
+        val top = cropTop
+        val right = cropRight
+        val bottom = cropBottom
+        return if (left >= 0 && top >= 0 && right > left && bottom > top) {
+            Rect(left, top, right, bottom)
+        } else {
+            null
+        }
+    }
+
+    fun saveCropRegion(rect: Rect?) {
+        if (rect != null && rect.width() > 0 && rect.height() > 0) {
+            cropLeft = rect.left
+            cropTop = rect.top
+            cropRight = rect.right
+            cropBottom = rect.bottom
+            isCropEnabled = true
+        } else {
+            isCropEnabled = false
+        }
+    }
+
     companion object {
         private const val TAG = "AppPreferences"
         private const val PREFS_FILENAME = "translator_secure_prefs"
@@ -75,5 +157,16 @@ class AppPreferences(context: Context) {
         private const val KEY_CAPTURE_INTERVAL_MS = "key_capture_interval_ms"
         private const val KEY_SHOW_BOUNDING_BOXES = "key_show_bounding_boxes"
         private const val KEY_IS_MANUAL_MODE = "key_is_manual_mode"
+        private const val KEY_LAST_SERVER_USED_CHARS = "key_last_server_used_chars"
+        private const val KEY_LAST_SERVER_CHAR_LIMIT = "key_last_server_char_limit"
+        private const val KEY_CUMULATIVE_CHARS_SENT = "key_cumulative_chars_sent"
+        private const val KEY_CUMULATIVE_CHARS_SAVED = "key_cumulative_chars_saved"
+        private const val KEY_CUMULATIVE_TOTAL_REQUESTS = "key_cumulative_total_requests"
+        private const val KEY_CUMULATIVE_FAILED_REQUESTS = "key_cumulative_failed_requests"
+        private const val KEY_CROP_LEFT = "key_crop_left"
+        private const val KEY_CROP_TOP = "key_crop_top"
+        private const val KEY_CROP_RIGHT = "key_crop_right"
+        private const val KEY_CROP_BOTTOM = "key_crop_bottom"
+        private const val KEY_IS_CROP_ENABLED = "key_is_crop_enabled"
     }
 }

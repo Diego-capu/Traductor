@@ -38,10 +38,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.antigravity.translator.R
+import com.antigravity.translator.data.model.TelemetryData
 import com.antigravity.translator.service.ScreenCaptureService
 import com.antigravity.translator.ui.theme.ScreenTranslatorTheme
 import com.antigravity.translator.ui.theme.SuccessGreen
 import com.antigravity.translator.ui.theme.WarningAmber
+import java.text.NumberFormat
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
@@ -78,6 +81,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             ScreenTranslatorTheme {
                 val uiState by viewModel.uiState.collectAsState()
+                val telemetry by viewModel.telemetryState.collectAsState()
+                val isRefreshingUsage by viewModel.isRefreshingUsage.collectAsState()
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -85,14 +90,18 @@ class MainActivity : ComponentActivity() {
                 ) {
                     TranslatorMainScreen(
                         uiState = uiState,
+                        telemetry = telemetry,
+                        isRefreshingUsage = isRefreshingUsage,
                         availableLanguages = viewModel.availableLanguages,
                         onApiKeyChanged = viewModel::onApiKeyChanged,
+                        onRefreshUsageClicked = viewModel::refreshUsage,
                         onSourceSelected = viewModel::onSourceLanguageSelected,
                         onTargetSelected = viewModel::onTargetLanguageSelected,
                         onModeToggled = viewModel::onModeToggled,
                         onRequestOverlayPermission = { requestOverlayPermission() },
                         onRequestNotificationPermission = { requestNotificationPermission() },
                         onStartServiceClicked = { requestScreenCapture() },
+                        onAdjustCropClicked = { adjustCropRegion() },
                         onStopServiceClicked = { stopTranslationService() }
                     )
                 }
@@ -146,7 +155,16 @@ class MainActivity : ComponentActivity() {
         }
         ContextCompat.startForegroundService(this, serviceIntent)
         viewModel.setServiceRunning(true)
-        Toast.makeText(this, "Miku_AI iniciado. Usa el botón flotante en pantalla.", Toast.LENGTH_LONG).show()
+        moveTaskToBack(true)
+        Toast.makeText(this, "Ajusta el área de recorte que deseas traducir", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun adjustCropRegion() {
+        val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+            action = ScreenCaptureService.ACTION_SHOW_CROP_SELECTOR
+        }
+        startService(serviceIntent)
+        moveTaskToBack(true)
     }
 
     private fun stopTranslationService() {
@@ -163,14 +181,18 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TranslatorMainScreen(
     uiState: MainUiState,
+    telemetry: TelemetryData,
+    isRefreshingUsage: Boolean,
     availableLanguages: List<Pair<String, String>>,
     onApiKeyChanged: (String) -> Unit,
+    onRefreshUsageClicked: () -> Unit,
     onSourceSelected: (String) -> Unit,
     onTargetSelected: (String) -> Unit,
     onModeToggled: (Boolean) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onStartServiceClicked: () -> Unit,
+    onAdjustCropClicked: () -> Unit = {},
     onStopServiceClicked: () -> Unit
 ) {
     var isApiKeyVisible by remember { mutableStateOf(false) }
@@ -361,6 +383,203 @@ fun TranslatorMainScreen(
             }
         }
 
+        // Consumo & Telemetría API Card (Miku Cyberpunk Palette #39C5BB & #E040FB)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Consumo & Telemetría API",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    // Remaining percentage chip (safely validated > 0L)
+                    val percentRemaining = if (telemetry.serverCharacterLimit > 0L) {
+                        ((telemetry.serverCharacterLimit - telemetry.serverUsedCharacters).coerceAtLeast(0L) * 100L / telemetry.serverCharacterLimit).toInt().coerceIn(0, 100)
+                    } else {
+                        0
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFE040FB).copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE040FB))
+                    ) {
+                        Text(
+                            text = "$percentRemaining% libre",
+                            color = Color(0xFFE040FB),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Number formatting using user Locale
+                val numberFormat = remember { NumberFormat.getNumberInstance(Locale.getDefault()) }
+                val usedStr = numberFormat.format(telemetry.serverUsedCharacters)
+                val limitStr = numberFormat.format(telemetry.serverCharacterLimit)
+                val sessionSentStr = numberFormat.format(telemetry.sessionCharactersSent)
+                val sessionSavedStr = numberFormat.format(telemetry.sessionCharactersSavedByCache)
+
+                // Usage Progress Bar with safe division (serverCharacterLimit > 0L)
+                val progress = if (telemetry.serverCharacterLimit > 0L) {
+                    (telemetry.serverUsedCharacters.toFloat() / telemetry.serverCharacterLimit.toFloat()).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp)),
+                    color = Color(0xFF39C5BB),
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Consumo en servidor:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "$usedStr / $limitStr caracteres",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF39C5BB)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Status chips
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Session sent chip
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF39C5BB).copy(alpha = 0.12f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Enviados sesión",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = sessionSentStr,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF39C5BB),
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
+                    // Cache saved chip
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF10B981).copy(alpha = 0.12f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Ahorro caché",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = sessionSavedStr,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981),
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
+                    // Requests total / failed chip
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Peticiones",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "${telemetry.totalRequests} (${telemetry.failedRequests} err)",
+                                fontWeight = FontWeight.Bold,
+                                color = if (telemetry.failedRequests > 0) Color(0xFFE11D48) else MaterialTheme.colorScheme.onSurface,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Actualizar Cuota button with loading indicator
+                OutlinedButton(
+                    onClick = onRefreshUsageClicked,
+                    enabled = !isRefreshingUsage && uiState.apiKey.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF39C5BB)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF39C5BB))
+                ) {
+                    if (isRefreshingUsage) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFF39C5BB)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Consultando /v2/usage...", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    } else {
+                        Text("Actualizar Cuota DeepL", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+
         // Mode Card: Manual vs Auto
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -426,6 +645,18 @@ fun TranslatorMainScreen(
         }
 
         if (uiState.isServiceRunning) {
+            OutlinedButton(
+                onClick = onAdjustCropClicked,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF39C5BB)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF39C5BB))
+            ) {
+                Text("Reajustar Área de Recorte", fontWeight = FontWeight.SemiBold)
+            }
+
             OutlinedButton(
                 onClick = onStopServiceClicked,
                 modifier = Modifier

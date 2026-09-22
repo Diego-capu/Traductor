@@ -1,12 +1,16 @@
 package com.antigravity.translator.ui
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.antigravity.translator.TranslatorApplication
+import com.antigravity.translator.data.model.TelemetryData
 import com.antigravity.translator.data.pref.AppPreferences
+import com.antigravity.translator.data.repository.DeepLRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class MainUiState(
     val apiKey: String = "",
@@ -20,7 +24,8 @@ data class MainUiState(
 )
 
 class MainViewModel(
-    private val appPreferences: AppPreferences = TranslatorApplication.instance.appPreferences
+    private val appPreferences: AppPreferences = TranslatorApplication.instance.appPreferences,
+    private val deepLRepository: DeepLRepository = TranslatorApplication.instance.deepLRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -34,6 +39,19 @@ class MainViewModel(
     )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
+    // Live telemetry state from repository
+    val telemetryState: StateFlow<TelemetryData> = deepLRepository.telemetryState
+
+    private val _isRefreshingUsage = MutableStateFlow(false)
+    val isRefreshingUsage: StateFlow<Boolean> = _isRefreshingUsage.asStateFlow()
+
+    init {
+        // Query initial quota on startup if an API key is present
+        if (appPreferences.apiKey.isNotBlank()) {
+            refreshUsage()
+        }
+    }
+
     val availableLanguages = listOf(
         "" to "Detectar automáticamente",
         "EN" to "Inglés",
@@ -44,8 +62,20 @@ class MainViewModel(
         "PT" to "Portugués",
         "JA" to "Japonés",
         "ZH" to "Chino",
+        "KO" to "Coreano",
         "RU" to "Ruso"
     )
+
+    fun refreshUsage() {
+        viewModelScope.launch {
+            _isRefreshingUsage.value = true
+            try {
+                deepLRepository.fetchRemoteUsage()
+            } finally {
+                _isRefreshingUsage.value = false
+            }
+        }
+    }
 
     fun onApiKeyChanged(newKey: String) {
         appPreferences.apiKey = newKey
@@ -54,6 +84,9 @@ class MainViewModel(
                 apiKey = newKey,
                 isProAccount = appPreferences.isProAccount
             )
+        }
+        if (newKey.isNotBlank()) {
+            refreshUsage()
         }
     }
 

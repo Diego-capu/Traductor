@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -69,6 +71,7 @@ class ScreenCaptureService : Service() {
 
     private var captureTickerJob: Job? = null
     private var lastDetectedBlocks: List<DetectedTextBlock> = emptyList()
+    private var activeCropRegion: Rect? = null
 
     private val _serviceState = MutableStateFlow(ServiceState.STOPPED)
     val serviceState: StateFlow<ServiceState> = _serviceState.asStateFlow()
@@ -89,19 +92,15 @@ class ScreenCaptureService : Service() {
         deepLRepository = app.deepLRepository
         ocrEngine = OcrEngine()
         ttsManager = TtsManager(this)
+        activeCropRegion = appPreferences.getSavedCropRegion()
 
         overlayWindowManager = OverlayWindowManager(
             context = this,
             onTranslateNowRequested = {
                 translateScreenOnce()
             },
-            onRegionSnipRequested = {
-                overlayWindowManager.startRegionSelection { selectedRect ->
-                    translateRegion(selectedRect)
-                }
-            },
-            onSampleAreaRequested = { sampleRect ->
-                translateRegion(sampleRect)
+            onCopyTextRequested = {
+                copyScreenTextOnce()
             },
             onClearOverlayRequested = {
                 lastDetectedBlocks = emptyList()
@@ -109,6 +108,15 @@ class ScreenCaptureService : Service() {
             },
             onToggleModeRequested = { isManual ->
                 toggleCaptureMode(isManual)
+            },
+            onCropAdjustRequested = {
+                showCropSelectorOverlay()
+            },
+            onOpenSettingsRequested = {
+                val settingsIntent = Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                startActivity(settingsIntent)
             },
             onStateToggle = { newState ->
                 when (newState) {
@@ -151,6 +159,10 @@ class ScreenCaptureService : Service() {
             }
             ACTION_CLEAR_OVERLAY -> {
                 overlayWindowManager.clearCanvas()
+                return START_STICKY
+            }
+            ACTION_SHOW_CROP_SELECTOR -> {
+                showCropSelectorOverlay()
                 return START_STICKY
             }
         }
@@ -216,9 +228,77 @@ class ScreenCaptureService : Service() {
         _serviceState.value = ServiceState.RUNNING
         overlayWindowManager.updateControlState(ServiceState.RUNNING)
 
-        // If in auto mode, start continuous loop; otherwise wait for on-demand "TRADUCIR" clicks
-        if (!appPreferences.isManualMode) {
-            startCaptureTicker()
+        // Show the interactive crop selection box whenever translation starts
+        showCropSelectorOverlay()
+    }
+
+    /**
+     * Shows full-screen interactive crop selection overlay for defining the translation area.
+     */
+    fun showCropSelectorOverlay() {
+        lastDetectedBlocks = emptyList()
+        overlayWindowManager.clearCanvas()
+
+        // Pause ticker if running
+        captureTickerJob?.cancel()
+        captureTickerJob = null
+
+        val initialRect = activeCropRegion ?: appPreferences.getLastCropOrNull()
+        overlayWindowManager.showCropSelectorOverlay(
+            initialRect = initialRect,
+            onConfirmed = { confirmedRect ->
+                appPreferences.saveCropRegion(confirmedRect)
+                activeCropRegion = confirmedRect
+                Toast.makeText(this, "Área de recorte guardada", Toast.LENGTH_SHORT).show()
+                overlayWindowManager.showOverlays()
+                if (!appPreferences.isManualMode && _serviceState.value == ServiceState.RUNNING) {
+                    startCaptureTicker()
+                }
+            },
+            onFullScreen = {
+                appPreferences.saveCropRegion(null)
+                activeCropRegion = null
+                Toast.makeText(this, "Traducción en pantalla completa fijada", Toast.LENGTH_SHORT).show()
+                overlayWindowManager.showOverlays()
+                if (!appPreferences.isManualMode && _serviceState.value == ServiceState.RUNNING) {
+                    startCaptureTicker()
+                }
+            }
+        )
+    }
+
+    private fun clampCropRect(rect: Rect, maxWidth: Int, maxHeight: Int): Rect {
+        val left = rect.left.coerceIn(0, (maxWidth - 2).coerceAtLeast(0))
+        val top = rect.top.coerceIn(0, (maxHeight - 2).coerceAtLeast(0))
+        val right = rect.right.coerceIn(left + 1, maxWidth)
+        val bottom = rect.bottom.coerceIn(top + 1, maxHeight)
+        return Rect(left, top, right, bottom)
+    }
+
+    private data class CroppedFrame(
+        val bitmap: Bitmap,
+        val offsetX: Int,
+        val offsetY: Int
+    )
+
+    private fun extractCropSubFrame(rawBitmap: Bitmap): CroppedFrame {
+        val crop = activeCropRegion
+        return if (crop != null && crop.width() > 10 && crop.height() > 10) {
+            val clamped = clampCropRect(crop, rawBitmap.width, rawBitmap.height)
+            val subBitmap = Bitmap.createBitmap(rawBitmap, clamped.left, clamped.top, clamped.width(), clamped.height())
+            rawBitmap.recycle()
+            CroppedFrame(subBitmap, clamped.left, clamped.top)
+        } else {
+            CroppedFrame(rawBitmap, 0, 0)
+        }
+    }
+
+    private fun offsetBlocksToScreenCoordinates(blocks: List<DetectedTextBlock>, offsetX: Int, offsetY: Int): List<DetectedTextBlock> {
+        if (offsetX == 0 && offsetY == 0) return blocks
+        return blocks.map { block ->
+            val box = Rect(block.boundingBox)
+            box.offset(offsetX, offsetY)
+            block.copy(boundingBox = box)
         }
     }
 
@@ -239,20 +319,25 @@ class ScreenCaptureService : Service() {
             // Small delay to ensure any transient touch highlights fade
             delay(150)
 
-            val bitmap = engine.acquireLatestFrame()
-            if (bitmap == null) {
+            val rawBitmap = engine.acquireLatestFrame()
+            if (rawBitmap == null) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@ScreenCaptureService, "No se pudo capturar la pantalla. Intenta nuevamente.", Toast.LENGTH_SHORT).show()
                 }
                 return@launch
             }
 
+            val frame = extractCropSubFrame(rawBitmap)
+            val srcLang = appPreferences.sourceLanguage
+            ocrEngine.setSourceLanguage(srcLang)
+
             try {
                 // 1. Detect text, filter out status bar / floating toolbar, and cluster speech bubbles
-                val rawBlocks = ocrEngine.processFrame(bitmap)
-                val cleanBlocks = filterIgnoredScreenRegions(rawBlocks)
+                val rawBlocks = ocrEngine.processFrame(frame.bitmap)
+                val screenBlocks = offsetBlocksToScreenCoordinates(rawBlocks, frame.offsetX, frame.offsetY)
+                val cleanBlocks = filterIgnoredScreenRegions(screenBlocks)
                 val density = resources.displayMetrics.density
-                val detectedBlocks = com.antigravity.translator.engine.ocr.MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density)
+                val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density, sourceLanguage = srcLang)
 
                 if (detectedBlocks.isEmpty()) {
                     withContext(Dispatchers.Main) {
@@ -275,16 +360,16 @@ class ScreenCaptureService : Service() {
                     }
                 }
             } finally {
-                bitmap.recycle()
+                frame.bitmap.recycle()
             }
         }
     }
 
     /**
-     * Executes localized translation for a sub-region (Snip selection or Magnifier Point).
-     * Strictly avoids premature bitmap recycling before ML Kit completes its asynchronous processing.
+     * Executes single-frame capture and OCR, then copies all extracted dialogue text to the clipboard.
+     * Operates 100% locally on-device without consuming any DeepL API quota.
      */
-    fun translateRegion(rect: Rect) {
+    fun copyScreenTextOnce() {
         serviceScope.launch {
             val engine = captureEngine
             if (engine == null) {
@@ -294,87 +379,47 @@ class ScreenCaptureService : Service() {
                 return@launch
             }
 
-            delay(100)
+            delay(150)
 
-            val fullBitmap = engine.acquireLatestFrame()
-            if (fullBitmap == null) {
+            val rawBitmap = engine.acquireLatestFrame()
+            if (rawBitmap == null) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@ScreenCaptureService, "No se pudo capturar la pantalla", Toast.LENGTH_SHORT).show()
                 }
                 return@launch
             }
 
-            // 1. Validate & clamp coordinates
-            val cropLeft = rect.left.coerceIn(0, fullBitmap.width - 1)
-            val cropTop = rect.top.coerceIn(0, fullBitmap.height - 1)
-            val cropRight = rect.right.coerceIn(cropLeft + 1, fullBitmap.width)
-            val cropBottom = rect.bottom.coerceIn(cropTop + 1, fullBitmap.height)
-            val cropWidth = cropRight - cropLeft
-            val cropHeight = cropBottom - cropTop
+            val frame = extractCropSubFrame(rawBitmap)
+            val srcLang = appPreferences.sourceLanguage
+            ocrEngine.setSourceLanguage(srcLang)
 
-            if (cropWidth < 10 || cropHeight < 10) {
-                fullBitmap.recycle()
-                return@launch
-            }
-
-            // 2. Crop the sub-region
-            val croppedBitmap = try {
-                Bitmap.createBitmap(fullBitmap, cropLeft, cropTop, cropWidth, cropHeight)
-            } catch (e: Exception) {
-                Log.e(tag, "Failed to create cropped sub-bitmap", e)
-                fullBitmap.recycle()
-                return@launch
-            }
-
-            // Safe to release fullBitmap now that cropped sub-bitmap exists
             try {
-                fullBitmap.recycle()
-            } catch (e: Exception) {
-                // Guard
-            }
+                val rawBlocks = ocrEngine.processFrame(frame.bitmap)
+                val screenBlocks = offsetBlocksToScreenCoordinates(rawBlocks, frame.offsetX, frame.offsetY)
+                val cleanBlocks = filterIgnoredScreenRegions(screenBlocks)
+                val density = resources.displayMetrics.density
+                val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density, sourceLanguage = srcLang)
 
-            // 3. Process ML Kit OCR on croppedBitmap:
-            // Crucial: Only recycle croppedBitmap AFTER ocrEngine.processFrame has fully awaited and completed!
-            val rawBlocks = try {
-                ocrEngine.processFrame(croppedBitmap)
-            } finally {
-                try {
-                    if (!croppedBitmap.isRecycled) {
-                        croppedBitmap.recycle()
+                if (detectedBlocks.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@ScreenCaptureService, "No se detectó texto en la pantalla", Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) {
-                    // Guard
+                    return@launch
                 }
-            }
 
-            if (rawBlocks.isEmpty()) {
+                val fullText = detectedBlocks.joinToString("\n\n") { it.text }
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@ScreenCaptureService, "No se detectó texto en el área seleccionada", Toast.LENGTH_SHORT).show()
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("Texto extraído", fullText)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(
+                        this@ScreenCaptureService,
+                        "Texto copiado al portapapeles (${detectedBlocks.size} bloques)",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
-                return@launch
-            }
-
-            // 4. Map bounding boxes back to physical screen space
-            val offsetBlocks = rawBlocks.map { block ->
-                val screenBox = Rect(block.boundingBox)
-                screenBox.offset(cropLeft, cropTop)
-                block.copy(boundingBox = screenBox)
-            }
-
-            // 5. Cluster and batch-translate
-            val density = resources.displayMetrics.density
-            val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(offsetBlocks, density)
-
-            val result = deepLRepository.translateBlocks(detectedBlocks)
-
-            result.onSuccess { translatedBlocks ->
-                lastDetectedBlocks = detectedBlocks
-                overlayWindowManager.updateTranslatedBlocks(translatedBlocks)
-            }.onFailure { error ->
-                Log.e(tag, "Region translation error: ${error.message}", error)
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@ScreenCaptureService, "Error: ${error.message}", Toast.LENGTH_LONG).show()
-                }
+            } finally {
+                frame.bitmap.recycle()
             }
         }
     }
@@ -423,13 +468,18 @@ class ScreenCaptureService : Service() {
 
     private suspend fun processScreenFrame() {
         val engine = captureEngine ?: return
-        val bitmap = engine.acquireLatestFrame() ?: return
+        val rawBitmap = engine.acquireLatestFrame() ?: return
+
+        val frame = extractCropSubFrame(rawBitmap)
+        val srcLang = appPreferences.sourceLanguage
+        ocrEngine.setSourceLanguage(srcLang)
 
         try {
-            val rawBlocks = ocrEngine.processFrame(bitmap)
-            val cleanBlocks = filterIgnoredScreenRegions(rawBlocks)
+            val rawBlocks = ocrEngine.processFrame(frame.bitmap)
+            val screenBlocks = offsetBlocksToScreenCoordinates(rawBlocks, frame.offsetX, frame.offsetY)
+            val cleanBlocks = filterIgnoredScreenRegions(screenBlocks)
             val density = resources.displayMetrics.density
-            val detectedBlocks = com.antigravity.translator.engine.ocr.MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density)
+            val detectedBlocks = MangaBubbleClusterer.clusterMangaBubbles(cleanBlocks, density, sourceLanguage = srcLang)
 
             if (detectedBlocks.isEmpty()) {
                 if (lastDetectedBlocks.isNotEmpty()) {
@@ -452,7 +502,7 @@ class ScreenCaptureService : Service() {
                 Log.w(tag, "Frame translation failed: ${error.message}")
             }
         } finally {
-            bitmap.recycle()
+            frame.bitmap.recycle()
         }
     }
 
@@ -618,5 +668,6 @@ class ScreenCaptureService : Service() {
         const val ACTION_RESUME = "com.antigravity.translator.ACTION_RESUME"
         const val ACTION_TRANSLATE_ONCE = "com.antigravity.translator.ACTION_TRANSLATE_ONCE"
         const val ACTION_CLEAR_OVERLAY = "com.antigravity.translator.ACTION_CLEAR_OVERLAY"
+        const val ACTION_SHOW_CROP_SELECTOR = "com.antigravity.translator.ACTION_SHOW_CROP_SELECTOR"
     }
 }

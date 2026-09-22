@@ -7,10 +7,12 @@ import java.util.UUID
 /**
  * Intelligent spatial text clusterer designed for Manga, Manhwa, and Comic speech bubbles.
  *
- * Solves the fragmentation issue where OCR returns individual lines or phrases.
- * Clusters vertically and horizontally adjacent lines inside the same speech bubble,
- * repairs hyphenated word wraps (e.g., "cow-" + "ardly" -> "cowardly"), and unifies
- * their bounding boxes so the translation covers the entire original speech bubble.
+ * Implements:
+ * 1. Tategaki reading order (Right-to-Left columns, Top-to-Bottom lines) strictly for Japanese (JA)
+ *    and Chinese (ZH), preserving standard Left-to-Right order for Korean (KO) and Western languages.
+ * 2. Furigana & noise micro-box filtering (discards blocks with height < 40% of cluster average).
+ * 3. Narrative page order across speech bubbles (Top-to-Bottom by page band, Right-to-Left for Manga).
+ * 4. CJK-aware string concatenation avoiding artificial spaces between kanji/kana characters.
  */
 object MangaBubbleClusterer {
 
@@ -19,11 +21,13 @@ object MangaBubbleClusterer {
      *
      * @param blocks Raw detected text blocks from ML Kit
      * @param density Display density scaling factor
+     * @param sourceLanguage Configured source language code (e.g., "JA", "ZH", "KO", "EN")
      * @return Clustered list with 1 unified DetectedTextBlock per speech bubble
      */
     fun clusterMangaBubbles(
         blocks: List<DetectedTextBlock>,
-        density: Float = 2.5f
+        density: Float = 2.5f,
+        sourceLanguage: String = ""
     ): List<DetectedTextBlock> {
         if (blocks.size <= 1) return blocks
 
@@ -31,14 +35,17 @@ object MangaBubbleClusterer {
         val validBlocks = blocks.filter {
             val w = it.boundingBox.right - it.boundingBox.left
             val h = it.boundingBox.bottom - it.boundingBox.top
-            it.text.trim().isNotEmpty() && w > 10 && h > 10
+            it.text.trim().isNotEmpty() && w > 8 && h > 8
         }
 
+        if (validBlocks.isEmpty()) return emptyList()
+
+        val isTategaki = isTategakiLanguage(sourceLanguage, validBlocks)
         val clusters = mutableListOf<MutableCluster>()
         val maxVerticalGapPx = (24 * density).toInt()
         val maxHorizontalGapPx = (32 * density).toInt()
 
-        // Sort primarily top-to-bottom, secondarily left-to-right
+        // Initial spatial grouping: sort primarily top-to-bottom, secondarily left-to-right
         val sortedBlocks = validBlocks.sortedWith(
             compareBy<DetectedTextBlock> { it.boundingBox.top }
                 .thenBy { it.boundingBox.left }
@@ -79,9 +86,25 @@ object MangaBubbleClusterer {
             }
         }
 
+        // Sort speech bubbles in chronological narrative order for DeepL contextual comprehension
+        val bandHeight = (120 * density).toInt().coerceAtLeast(100)
+        val sortedClusters = if (isTategaki) {
+            // Manga narrative reading order: Top-to-Bottom by page band, then Right-to-Left
+            clusters.sortedWith(
+                compareBy<MutableCluster> { it.bounds.top / bandHeight }
+                    .thenByDescending { it.bounds.right }
+            )
+        } else {
+            // Standard reading order: Top-to-Bottom by page band, then Left-to-Right
+            clusters.sortedWith(
+                compareBy<MutableCluster> { it.bounds.top / bandHeight }
+                    .thenBy { it.bounds.left }
+            )
+        }
+
         // Convert clusters into final unified DetectedTextBlocks with exact bounds
-        return clusters.map { cluster ->
-            val unifiedText = cluster.buildUnifiedText()
+        return sortedClusters.map { cluster ->
+            val unifiedText = cluster.buildUnifiedText(isTategaki)
             val exactRect = Rect().apply {
                 left = cluster.bounds.left
                 top = cluster.bounds.top
@@ -96,6 +119,25 @@ object MangaBubbleClusterer {
         }
     }
 
+    /**
+     * Determines whether Tategaki (Right-to-Left vertical column reading order) applies.
+     * Strictly true for Japanese (JA) and Chinese (ZH).
+     * Strictly false for Korean (KO) and Western languages.
+     */
+    fun isTategakiLanguage(sourceLanguage: String, blocks: List<DetectedTextBlock>): Boolean {
+        val lang = sourceLanguage.trim().uppercase()
+        if (lang == "JA" || lang == "ZH") return true
+        if (lang.isNotEmpty()) return false // Explicit non-Tategaki (KO, EN, ES, FR, DE, etc.)
+
+        // If sourceLanguage is auto/unspecified, detect if characters are Japanese/Chinese
+        return blocks.any { block ->
+            block.text.any { c ->
+                (c in '\u3040'..'\u30ff') || // Hiragana / Katakana
+                (c in '\u4e00'..'\u9fa5')   // CJK Unified Ideographs
+            }
+        }
+    }
+
     private class MutableCluster(firstBlock: DetectedTextBlock) {
         val bounds = Rect().apply {
             left = firstBlock.boundingBox.left
@@ -106,12 +148,14 @@ object MangaBubbleClusterer {
         val textPieces = mutableListOf<TextPiece>()
 
         init {
-            textPieces.add(TextPiece(firstBlock.text.trim(), firstBlock.boundingBox.top, firstBlock.boundingBox.left))
+            val b = firstBlock.boundingBox
+            textPieces.add(TextPiece(firstBlock.text.trim(), b.top, b.left, b.right, b.bottom))
         }
 
         fun add(block: DetectedTextBlock) {
             unionRect(bounds, block.boundingBox)
-            textPieces.add(TextPiece(block.text.trim(), block.boundingBox.top, block.boundingBox.left))
+            val b = block.boundingBox
+            textPieces.add(TextPiece(block.text.trim(), b.top, b.left, b.right, b.bottom))
         }
 
         fun mergeWith(other: MutableCluster) {
@@ -127,42 +171,116 @@ object MangaBubbleClusterer {
         }
 
         fun isNear(rect: Rect, maxVGap: Int, maxHGap: Int): Boolean {
-            // Horizontal proximity / overlap
             val hOverlap = (bounds.left <= rect.right + maxHGap) && (bounds.right >= rect.left - maxHGap)
-            // Vertical proximity / overlap
             val vOverlap = (bounds.top <= rect.bottom + maxVGap) && (bounds.bottom >= rect.top - maxVGap)
-
             return hOverlap && vOverlap
         }
 
-        fun buildUnifiedText(): String {
-            // Sort lines top to bottom within the speech bubble
-            val sortedPieces = textPieces.sortedWith(
-                compareBy<TextPiece> { it.top }.thenBy { it.left }
-            )
+        /**
+         * Discards micro furigana ruby text and builds a single coherent paragraph
+         * ordered according to the language reading model.
+         */
+        fun buildUnifiedText(isTategaki: Boolean): String {
+            // 1. Furigana & noise filtering: discard micro-rectangles < 40% of average cluster height
+            val candidatePieces = if (textPieces.size >= 2) {
+                val avgHeight = textPieces.map { (it.bottom - it.top).toDouble() }.average()
+                val minHeightThreshold = avgHeight * 0.40
+                val filtered = textPieces.filter { (it.bottom - it.top) >= minHeightThreshold }
+                if (filtered.isNotEmpty()) filtered else textPieces
+            } else {
+                textPieces
+            }
 
+            // 2. Sort lines according to reading direction
+            val sortedPieces = if (isTategaki) {
+                // Tategaki (Japanese/Chinese Manga):
+                // Columns ordered from Right to Left (descending X)
+                // Lines within each vertical column ordered from Top to Bottom (ascending Y)
+                candidatePieces.sortedWith { a, b ->
+                    val aCenterX = (a.left + a.right) / 2
+                    val bCenterX = (b.left + b.right) / 2
+                    val aWidth = (a.right - a.left).coerceAtLeast(1)
+                    val bWidth = (b.right - b.left).coerceAtLeast(1)
+                    val colTolerance = (kotlin.math.min(aWidth, bWidth) * 0.45f).toInt().coerceAtLeast(8)
+
+                    val inSameColumn = kotlin.math.abs(aCenterX - bCenterX) <= colTolerance ||
+                            (a.left < b.right && a.right > b.left)
+
+                    if (inSameColumn) {
+                        a.top.compareTo(b.top)
+                    } else {
+                        bCenterX.compareTo(aCenterX) // Right to Left
+                    }
+                }
+            } else {
+                // Standard Horizontal (Korean Manhwa / Western Comics):
+                // Lines ordered from Top to Bottom, Left to Right
+                candidatePieces.sortedWith { a, b ->
+                    val aCenterY = (a.top + a.bottom) / 2
+                    val bCenterY = (b.top + b.bottom) / 2
+                    val aHeight = (a.bottom - a.top).coerceAtLeast(1)
+                    val bHeight = (b.bottom - b.top).coerceAtLeast(1)
+                    val rowTolerance = (kotlin.math.min(aHeight, bHeight) * 0.45f).toInt().coerceAtLeast(8)
+
+                    val inSameRow = kotlin.math.abs(aCenterY - bCenterY) <= rowTolerance ||
+                            (a.top < b.bottom && a.bottom > b.top)
+
+                    if (inSameRow) {
+                        a.left.compareTo(b.left)
+                    } else {
+                        aCenterY.compareTo(bCenterY) // Top to Bottom
+                    }
+                }
+            }
+
+            // 3. Concatenate lines into a unified continuous paragraph
             val sb = StringBuilder()
             for (piece in sortedPieces) {
                 val currentText = piece.text
                 if (sb.isEmpty()) {
                     sb.append(currentText)
                 } else {
-                    // Check if previous line ended with hyphenation (e.g., "cow-")
-                    if (sb.endsWith("-") && !sb.endsWith("--")) {
-                        sb.setLength(sb.length - 1) // Remove hyphen
-                        sb.append(currentText)
+                    if (isTategaki) {
+                        // In Japanese/Chinese, do not insert spaces between CJK characters
+                        val lastChar = sb.lastOrNull()
+                        val firstChar = currentText.firstOrNull()
+
+                        val isLastCjk = lastChar != null && isCjkCharacter(lastChar)
+                        val isFirstCjk = firstChar != null && isCjkCharacter(firstChar)
+
+                        if (isLastCjk || isFirstCjk) {
+                            sb.append(currentText)
+                        } else {
+                            sb.append(" ").append(currentText)
+                        }
                     } else {
-                        sb.append(" ").append(currentText)
+                        // In Western / Korean languages: join with spaces or handle hyphens
+                        if (sb.endsWith("-") && !sb.endsWith("--")) {
+                            sb.setLength(sb.length - 1) // Remove hyphen wrap
+                            sb.append(currentText)
+                        } else {
+                            sb.append(" ").append(currentText)
+                        }
                     }
                 }
             }
+
             return sb.toString().replace(Regex("\\s+"), " ").trim()
+        }
+
+        private fun isCjkCharacter(c: Char): Boolean {
+            return (c in '\u3040'..'\u30ff') || // Hiragana / Katakana
+                    (c in '\u4e00'..'\u9fa5') || // Kanji / Hanzi
+                    (c in '\u3000'..'\u303f') || // CJK Symbols and Punctuation
+                    (c in '\uff00'..'\uffef')    // Halfwidth and Fullwidth Forms
         }
     }
 
     private data class TextPiece(
         val text: String,
         val top: Int,
-        val left: Int
+        val left: Int,
+        val right: Int,
+        val bottom: Int
     )
 }
