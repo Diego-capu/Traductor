@@ -314,7 +314,7 @@ fun TranslatorMainScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // 2x2 Grid of Profiles
+                // Grid of Profiles (5 options: Manga JA, Manga EN, Manhwa, Manhua, Cómic)
                 val profiles = ReadingProfile.entries
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (rowChunk in profiles.chunked(2)) {
@@ -358,16 +358,20 @@ fun TranslatorMainScreen(
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = when (profile) {
-                                                ReadingProfile.MANGA -> "Vertical RTL"
-                                                ReadingProfile.MANHWA -> "Horizontal LTR"
-                                                ReadingProfile.MANHUA -> "Horizontal CJK"
-                                                ReadingProfile.COMIC -> "Occidental LTR"
+                                                ReadingProfile.MANGA_JA -> "Vertical RTL (JA)"
+                                                ReadingProfile.MANGA_EN -> "Horizontal LTR (EN)"
+                                                ReadingProfile.MANHWA -> "Horizontal LTR (KO)"
+                                                ReadingProfile.MANHUA -> "Horizontal CJK (ZH)"
+                                                ReadingProfile.COMIC -> "Occidental LTR (EN)"
                                             },
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
+                            }
+                            if (rowChunk.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }

@@ -21,11 +21,17 @@ class ReadingProfileTest {
 
     @Test
     fun testReadingProfileProperties() {
-        // MANGA: Japanese, Vertical Tategaki RTL, No word spaces, Formality less
-        assertEquals("JA", ReadingProfile.MANGA.defaultSourceLang)
-        assertTrue(ReadingProfile.MANGA.isTategaki)
-        assertFalse(ReadingProfile.MANGA.usesSpacedWords)
-        assertEquals("less", ReadingProfile.MANGA.defaultFormality)
+        // MANGA_JA: Japanese, Vertical Tategaki RTL, No word spaces, Formality less
+        assertEquals("JA", ReadingProfile.MANGA_JA.defaultSourceLang)
+        assertTrue(ReadingProfile.MANGA_JA.isTategaki)
+        assertFalse(ReadingProfile.MANGA_JA.usesSpacedWords)
+        assertEquals("less", ReadingProfile.MANGA_JA.defaultFormality)
+
+        // MANGA_EN: English scanlation, Horizontal LTR, Spaced words, Formality less
+        assertEquals("EN", ReadingProfile.MANGA_EN.defaultSourceLang)
+        assertFalse(ReadingProfile.MANGA_EN.isTategaki)
+        assertTrue(ReadingProfile.MANGA_EN.usesSpacedWords)
+        assertEquals("less", ReadingProfile.MANGA_EN.defaultFormality)
 
         // MANHWA: Korean, Horizontal LTR, Spaced words, Formality less
         assertEquals("KO", ReadingProfile.MANHWA.defaultSourceLang)
@@ -48,14 +54,15 @@ class ReadingProfileTest {
 
     @Test
     fun testReadingProfileNextCycle() {
-        assertEquals(ReadingProfile.MANHWA, ReadingProfile.MANGA.next())
+        assertEquals(ReadingProfile.MANGA_EN, ReadingProfile.MANGA_JA.next())
+        assertEquals(ReadingProfile.MANHWA, ReadingProfile.MANGA_EN.next())
         assertEquals(ReadingProfile.MANHUA, ReadingProfile.MANHWA.next())
         assertEquals(ReadingProfile.COMIC, ReadingProfile.MANHUA.next())
-        assertEquals(ReadingProfile.MANGA, ReadingProfile.COMIC.next())
+        assertEquals(ReadingProfile.MANGA_JA, ReadingProfile.COMIC.next())
     }
 
     @Test
-    fun testMangaProfileEnforcesTategakiRtlOrderingAndNoSpaces() {
+    fun testMangaJaProfileEnforcesTategakiRtlOrderingAndNoSpaces() {
         val col1Top = DetectedTextBlock(
             text = "お前は",
             boundingBox = rect(200, 100, 230, 150)
@@ -73,18 +80,64 @@ class ReadingProfileTest {
             boundingBox = rect(148, 160, 178, 200)
         )
 
-        // Input passed with empty sourceLanguage but explicit MANGA profile
         val rawBlocks = listOf(col2Bottom, col1Top, col2Top, col1Bottom)
         val clustered = MangaBubbleClusterer.clusterMangaBubbles(
             blocks = rawBlocks,
             density = 1.0f,
             sourceLanguage = "",
-            readingProfile = ReadingProfile.MANGA
+            readingProfile = ReadingProfile.MANGA_JA
         )
 
         assertEquals(1, clustered.size)
         // Expected Tategaki order with no spaces between kanji/kana
         assertEquals("お前はもう死んでいる", clustered[0].text)
+    }
+
+    @Test
+    fun testMangaEnProfileEnforcesHorizontalOrderAndSpaces() {
+        val line1 = DetectedTextBlock(
+            text = "I must find",
+            boundingBox = rect(100, 100, 250, 130)
+        )
+        val line2 = DetectedTextBlock(
+            text = "the truth!",
+            boundingBox = rect(100, 135, 250, 165)
+        )
+
+        val rawBlocks = listOf(line1, line2)
+        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = rawBlocks,
+            density = 1.0f,
+            sourceLanguage = "",
+            readingProfile = ReadingProfile.MANGA_EN
+        )
+
+        assertEquals(1, clustered.size)
+        // English scanlation is horizontal LTR with natural spaces
+        assertEquals("I must find the truth!", clustered[0].text)
+    }
+
+    @Test
+    fun testMangaEnProfileFixesHyphenation() {
+        val line1 = DetectedTextBlock(
+            text = "cow-",
+            boundingBox = rect(100, 100, 200, 130)
+        )
+        val line2 = DetectedTextBlock(
+            text = "ardly",
+            boundingBox = rect(100, 135, 200, 165)
+        )
+
+        val rawBlocks = listOf(line1, line2)
+        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = rawBlocks,
+            density = 1.0f,
+            sourceLanguage = "EN",
+            readingProfile = ReadingProfile.MANGA_EN
+        )
+
+        assertEquals(1, clustered.size)
+        assertEquals("cowardly", clustered[0].text)
     }
 
     @Test
@@ -157,29 +210,5 @@ class ReadingProfileTest {
         assertEquals(1, clustered.size)
         // Hyphen unwrapped with word spacing
         assertEquals("incredible power", clustered[0].text)
-    }
-
-    @Test
-    fun testMangaProfileWithEnglishScanlationPreservesHorizontalOrderAndSpaces() {
-        val line1 = DetectedTextBlock(
-            text = "I must find",
-            boundingBox = rect(100, 100, 250, 130)
-        )
-        val line2 = DetectedTextBlock(
-            text = "the truth!",
-            boundingBox = rect(100, 135, 250, 165)
-        )
-
-        val rawBlocks = listOf(line1, line2)
-        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
-            blocks = rawBlocks,
-            density = 1.0f,
-            sourceLanguage = "",
-            readingProfile = ReadingProfile.MANGA
-        )
-
-        assertEquals(1, clustered.size)
-        // English scanlation should NOT be treated as Tategaki, should have spaces
-        assertEquals("I must find the truth!", clustered[0].text)
     }
 }

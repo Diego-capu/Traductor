@@ -154,10 +154,10 @@ class MangaBubbleClustererTest {
             blocks = rawBlocks,
             density = 1.0f,
             sourceLanguage = "JA",
-            readingProfile = ReadingProfile.MANGA
+            readingProfile = ReadingProfile.MANGA_JA
         )
 
-        // Under MANGA profile (32.4px tolerance), 30px gap is clustered into 1 bubble
+        // Under MANGA_JA profile (32.4px tolerance), 30px gap is clustered into 1 bubble
         assertEquals(1, clusteredManga.size)
         assertEquals("上の段下の段", clusteredManga[0].text)
     }
@@ -226,7 +226,7 @@ class MangaBubbleClustererTest {
             blocks = listOf(bubbleA, bubbleB),
             density = 1.0f,
             sourceLanguage = "JA",
-            readingProfile = ReadingProfile.MANGA
+            readingProfile = ReadingProfile.MANGA_JA
         )
 
         // Must remain 2 separate distinct speech bubbles
@@ -253,7 +253,7 @@ class MangaBubbleClustererTest {
             blocks = listOf(bubbleTop, bubbleBottom),
             density = 1.0f,
             sourceLanguage = "JA",
-            readingProfile = ReadingProfile.MANGA
+            readingProfile = ReadingProfile.MANGA_JA
         )
 
         // Must remain 2 separate distinct speech bubbles
@@ -282,7 +282,7 @@ class MangaBubbleClustererTest {
             blocks = listOf(bubble1, bubble2),
             density = 1.0f,
             sourceLanguage = "JA",
-            readingProfile = ReadingProfile.MANGA
+            readingProfile = ReadingProfile.MANGA_JA
         )
 
         // Must be rejected by Proportion Guard and kept as 2 distinct bubbles
@@ -313,5 +313,29 @@ class MangaBubbleClustererTest {
         assertEquals(2, clustered.size)
         assertTrue(clustered.any { it.text == "First dialogue bubble" })
         assertTrue(clustered.any { it.text == "Second separate bubble" })
+    }
+
+    @Test
+    fun testMangaEnProfileBypassesFuriganaFilterAndPreservesShortWords() {
+        // In Manga EN scans, short words or single letters like "I", "a", "!" might have small bounding boxes
+        val mainLine = DetectedTextBlock(
+            text = "Where are",
+            boundingBox = rect(100, 100, 220, 150)
+        )
+        val shortWord = DetectedTextBlock(
+            text = "you?",
+            boundingBox = rect(100, 155, 160, 162) // Small height = 7px
+        )
+
+        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = listOf(mainLine, shortWord),
+            density = 1.0f,
+            sourceLanguage = "EN",
+            readingProfile = ReadingProfile.MANGA_EN
+        )
+
+        assertEquals(1, clustered.size)
+        // Must NOT be discarded by furigana filtering
+        assertEquals("Where are you?", clustered[0].text)
     }
 }

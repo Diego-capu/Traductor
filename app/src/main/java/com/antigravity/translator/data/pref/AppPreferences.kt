@@ -33,11 +33,11 @@ class AppPreferences(context: Context) {
 
     var readingProfile: ReadingProfile
         get() {
-            val name = prefs.getString(KEY_READING_PROFILE, ReadingProfile.MANGA.name) ?: ReadingProfile.MANGA.name
+            val name = prefs.getString(KEY_READING_PROFILE, ReadingProfile.MANGA_JA.name) ?: ReadingProfile.MANGA_JA.name
             return try {
-                ReadingProfile.valueOf(name)
+                if (name == "MANGA") ReadingProfile.MANGA_JA else ReadingProfile.valueOf(name)
             } catch (e: Exception) {
-                ReadingProfile.MANGA
+                ReadingProfile.MANGA_JA
             }
         }
         set(value) = prefs.edit().putString(KEY_READING_PROFILE, value.name).apply()

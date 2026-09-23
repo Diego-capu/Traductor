@@ -31,7 +31,7 @@ class OcrEngine {
 
     private val tag = "OcrEngine"
     private var currentLangCode: String = ""
-    private var activeProfile: ReadingProfile = ReadingProfile.MANGA
+    private var activeProfile: ReadingProfile = ReadingProfile.MANGA_JA
     private var recognizer: TextRecognizer? = null
     private val recognizerLock = Any()
     @Volatile
@@ -44,29 +44,64 @@ class OcrEngine {
 
     /**
      * Intelligently configures OCR based on user's selected language and reading medium.
-     * When user selects "Auto-detect" (""), defaults to Latin for English scanlations,
-     * with automatic CJK fallback if raw Japanese/Korean/Chinese text is present.
+     * When user selects "Auto-detect" (""), defaults to the optimal recognizer for the selected ReadingProfile.
      */
     fun configure(userSourceLang: String, profile: ReadingProfile) {
         activeProfile = profile
         val lang = userSourceLang.trim().uppercase()
-        val targetEngine = when (lang) {
-            "JA" -> "JA"
-            "KO" -> "KO"
-            "ZH" -> "ZH"
-            "EN", "ES", "FR", "DE", "IT", "PT", "RU" -> "DEFAULT"
-            else -> "DEFAULT" // Auto-detect: prioritize Latin for scanlations, with auto CJK fallback
+        if (lang.isNotEmpty()) {
+            val targetEngine = when (lang) {
+                "JA" -> "JA"
+                "KO" -> "KO"
+                "ZH" -> "ZH"
+                else -> "DEFAULT"
+            }
+            setSourceLanguage(targetEngine)
+        } else {
+            // Auto-detect / empty: use profile-specific recognizer directly
+            setReadingProfile(profile)
         }
-        setSourceLanguage(targetEngine)
     }
 
     /**
      * Directly configures the optimal ML Kit recognizer for the selected ReadingProfile,
      * releasing native GPU/CPU memory from any previous instance.
+     *
+     * - MANGA_JA: JapaneseTextRecognizerOptions
+     * - MANGA_EN: TextRecognizerOptions.DEFAULT_OPTIONS (faster, Latin-optimized)
+     * - MANHWA: KoreanTextRecognizerOptions
+     * - MANHUA: ChineseTextRecognizerOptions
+     * - COMIC: TextRecognizerOptions.DEFAULT_OPTIONS
      */
     fun setReadingProfile(profile: ReadingProfile) {
         activeProfile = profile
-        setSourceLanguage(profile.defaultSourceLang)
+        val targetEngine = when (profile) {
+            ReadingProfile.MANGA_JA -> "JA"
+            ReadingProfile.MANGA_EN -> "DEFAULT"
+            ReadingProfile.MANHWA -> "KO"
+            ReadingProfile.MANHUA -> "ZH"
+            ReadingProfile.COMIC -> "DEFAULT"
+        }
+        synchronized(recognizerLock) {
+            if (targetEngine == currentLangCode && recognizer != null) return
+
+            try {
+                recognizer?.close()
+                Log.d(tag, "Closed previous TextRecognizer for $currentLangCode")
+            } catch (e: Exception) {
+                Log.w(tag, "Error closing previous TextRecognizer", e)
+            }
+
+            recognizer = when (profile) {
+                ReadingProfile.MANGA_JA -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
+                ReadingProfile.MANGA_EN -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                ReadingProfile.MANHWA -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
+                ReadingProfile.MANHUA -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+                ReadingProfile.COMIC -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            }
+            currentLangCode = targetEngine
+            Log.d(tag, "Configured specialized TextRecognizer for profile ${profile.name} ($targetEngine)")
+        }
     }
 
     /**

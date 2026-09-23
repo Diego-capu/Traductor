@@ -38,7 +38,7 @@ class FloatingMenuView(
     private val onSettingsClicked: () -> Unit,
     private val onCloseClicked: () -> Unit,
     initialIsManualMode: Boolean = true,
-    initialReadingProfile: ReadingProfile = ReadingProfile.MANGA,
+    initialReadingProfile: ReadingProfile = ReadingProfile.MANGA_JA,
     private val onReadingProfileChanged: (ReadingProfile) -> Unit = {}
 ) {
     private var isManualMode: Boolean = initialIsManualMode

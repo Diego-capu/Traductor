@@ -51,7 +51,7 @@ object MangaBubbleClusterer {
         }
         val usesSpacedWords = if (!hasCjk) true else (readingProfile?.usesSpacedWords ?: !isTategaki)
         val clusters = mutableListOf<MutableCluster>()
-        val verticalGapMultiplier = if (readingProfile == ReadingProfile.MANGA) 1.35f else 1.0f
+        val verticalGapMultiplier = if (readingProfile == ReadingProfile.MANGA_JA) 1.35f else 1.0f
         val maxVerticalGapPx = (24 * density * verticalGapMultiplier).toInt()
         val maxHorizontalGapPx = (32 * density).toInt()
 
@@ -114,7 +114,7 @@ object MangaBubbleClusterer {
 
         // Convert clusters into final unified DetectedTextBlocks with exact bounds
         return sortedClusters.map { cluster ->
-            val unifiedText = cluster.buildUnifiedText(isTategaki, usesSpacedWords)
+            val unifiedText = cluster.buildUnifiedText(isTategaki, usesSpacedWords, readingProfile)
             val exactRect = Rect().apply {
                 left = cluster.bounds.left
                 top = cluster.bounds.top
@@ -288,10 +288,14 @@ object MangaBubbleClusterer {
          * Discards micro furigana ruby text and builds a single coherent paragraph
          * ordered according to the language reading model.
          */
-        fun buildUnifiedText(isTategaki: Boolean, usesSpacedWords: Boolean = !isTategaki): String {
+        fun buildUnifiedText(
+            isTategaki: Boolean,
+            usesSpacedWords: Boolean = !isTategaki,
+            readingProfile: ReadingProfile? = null
+        ): String {
             // 1. Furigana & noise filtering: discard micro-rectangles < 20% of average cluster height,
-            // never discarding small bounding boxes aligned vertically within an active column (e.g. "一", "つ", "。")
-            val candidatePieces = if (textPieces.size >= 2) {
+            // only applicable to Japanese Tategaki (MANGA_JA). Completely bypassed for MANGA_EN and horizontal text.
+            val candidatePieces = if ((isTategaki || readingProfile == ReadingProfile.MANGA_JA) && textPieces.size >= 2) {
                 val avgHeight = textPieces.map { (it.bottom - it.top).toDouble() }.average()
                 val minHeightThreshold = avgHeight * 0.20
                 val filtered = textPieces.filter { piece ->

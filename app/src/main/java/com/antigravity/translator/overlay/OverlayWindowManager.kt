@@ -40,7 +40,7 @@ class OverlayWindowManager(
     private val getTargetLanguage: (() -> String)? = null,
     private val getSourceLanguage: (() -> String)? = null,
     initialIsManualMode: Boolean = true,
-    initialReadingProfile: ReadingProfile = ReadingProfile.MANGA,
+    initialReadingProfile: ReadingProfile = ReadingProfile.MANGA_JA,
     private val onReadingProfileChanged: ((ReadingProfile) -> Unit)? = null
 ) {
     private val tag = "OverlayWindowManager"

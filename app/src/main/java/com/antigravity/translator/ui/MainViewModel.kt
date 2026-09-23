@@ -18,7 +18,7 @@ data class MainUiState(
     val apiKey: String = "",
     val sourceLanguage: String = "",
     val targetLanguage: String = "ES",
-    val readingProfile: ReadingProfile = ReadingProfile.MANGA,
+    val readingProfile: ReadingProfile = ReadingProfile.MANGA_JA,
     val isOverlayPermissionGranted: Boolean = false,
     val isNotificationPermissionGranted: Boolean = false,
     val isServiceRunning: Boolean = false,

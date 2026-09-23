@@ -19,11 +19,18 @@ enum class ReadingProfile(
     val usesSpacedWords: Boolean,
     val defaultFormality: String?
 ) {
-    MANGA(
+    MANGA_JA(
         title = "Manga (JA)",
         defaultSourceLang = "JA",
         isTategaki = true,
         usesSpacedWords = false,
+        defaultFormality = "less"
+    ),
+    MANGA_EN(
+        title = "Manga (EN)",
+        defaultSourceLang = "EN",
+        isTategaki = false,
+        usesSpacedWords = true,
         defaultFormality = "less"
     ),
     MANHWA(
@@ -41,7 +48,7 @@ enum class ReadingProfile(
         defaultFormality = null
     ),
     COMIC(
-        title = "Comic (EN/West)",
+        title = "Cómic (Occidental)",
         defaultSourceLang = "EN",
         isTategaki = false,
         usesSpacedWords = true,
