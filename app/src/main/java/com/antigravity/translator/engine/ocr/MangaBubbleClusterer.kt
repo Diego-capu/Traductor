@@ -224,8 +224,13 @@ object MangaBubbleClusterer {
             val unionWidth = unionRight - unionLeft
             val unionHeight = unionBottom - unionTop
 
-            // 1. Proportion Guard in Manga Tategaki mode: reject abnormally wide merged bubbles
+            // 1. Proportion Guard:
+            // Tategaki mode: reject abnormally wide merged bubbles
             if (isTategaki && unionWidth > unionHeight * 1.5f) {
+                return false
+            }
+            // Horizontal mode: reject abnormally tall/narrow merged bubbles (prevents vertical chains across panels)
+            if (!isTategaki && unionHeight > unionWidth * 1.8f) {
                 return false
             }
 
@@ -268,17 +273,20 @@ object MangaBubbleClusterer {
                 val vGap = if (bounds.top > rect.bottom) bounds.top - rect.bottom else if (rect.top > bounds.bottom) rect.top - bounds.bottom else 0
                 val hGap = if (bounds.left > rect.right) bounds.left - rect.right else if (rect.left > bounds.right) rect.left - bounds.right else 0
 
-                // Two blocks can ONLY be merged if vertical line gap < 0.8 * lineHeight
-                val maxAllowedVGap = 0.8f * lineHeight
+                // Two blocks can ONLY be merged if vertical line gap <= 0.75 * lineHeight
+                val maxAllowedVGap = 0.75f * lineHeight
                 if (vGap > maxAllowedVGap) {
                     return false
                 }
 
                 val horizontalSpanOverlap = kotlin.math.max(0, kotlin.math.min(bounds.right, rect.right) - kotlin.math.max(bounds.left, rect.left))
                 val minWidth = kotlin.math.min(bounds.right - bounds.left, rect.right - rect.left)
+                val verticalSpanOverlap = kotlin.math.max(0, kotlin.math.min(bounds.bottom, rect.bottom) - kotlin.math.max(bounds.top, rect.top))
 
-                val isInlineWord = vGap <= (4 * density).toInt() && hGap <= maxHorizontalGapPx
-                val isStackedLine = (minWidth > 0 && horizontalSpanOverlap >= 0.20f * minWidth) || hGap <= (12 * density).toInt()
+                // Words side-by-side on the exact same horizontal line
+                val isInlineWord = vGap <= (4 * density).toInt() && hGap <= maxHorizontalGapPx && verticalSpanOverlap >= 0.50f * lineHeight
+                // Stacked lines: candidate lines must share at least 50% horizontal span
+                val isStackedLine = minWidth > 0 && horizontalSpanOverlap >= 0.50f * minWidth
 
                 return isInlineWord || isStackedLine
             }

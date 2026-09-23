@@ -33,11 +33,17 @@ class ReadingProfileTest {
         assertTrue(ReadingProfile.MANGA_EN.usesSpacedWords)
         assertEquals("less", ReadingProfile.MANGA_EN.defaultFormality)
 
-        // MANHWA: Korean, Horizontal LTR, Spaced words, Formality less
-        assertEquals("KO", ReadingProfile.MANHWA.defaultSourceLang)
-        assertFalse(ReadingProfile.MANHWA.isTategaki)
-        assertTrue(ReadingProfile.MANHWA.usesSpacedWords)
-        assertEquals("less", ReadingProfile.MANHWA.defaultFormality)
+        // MANHWA_KO: Korean, Horizontal LTR, Spaced words, Formality less
+        assertEquals("KO", ReadingProfile.MANHWA_KO.defaultSourceLang)
+        assertFalse(ReadingProfile.MANHWA_KO.isTategaki)
+        assertTrue(ReadingProfile.MANHWA_KO.usesSpacedWords)
+        assertEquals("less", ReadingProfile.MANHWA_KO.defaultFormality)
+
+        // MANHWA_EN: English manhwa scanlation, Horizontal LTR, Spaced words, Formality less
+        assertEquals("EN", ReadingProfile.MANHWA_EN.defaultSourceLang)
+        assertFalse(ReadingProfile.MANHWA_EN.isTategaki)
+        assertTrue(ReadingProfile.MANHWA_EN.usesSpacedWords)
+        assertEquals("less", ReadingProfile.MANHWA_EN.defaultFormality)
 
         // MANHUA: Chinese, Horizontal LTR, No word spaces, Formality null
         assertEquals("ZH", ReadingProfile.MANHUA.defaultSourceLang)
@@ -55,8 +61,9 @@ class ReadingProfileTest {
     @Test
     fun testReadingProfileNextCycle() {
         assertEquals(ReadingProfile.MANGA_EN, ReadingProfile.MANGA_JA.next())
-        assertEquals(ReadingProfile.MANHWA, ReadingProfile.MANGA_EN.next())
-        assertEquals(ReadingProfile.MANHUA, ReadingProfile.MANHWA.next())
+        assertEquals(ReadingProfile.MANHWA_KO, ReadingProfile.MANGA_EN.next())
+        assertEquals(ReadingProfile.MANHWA_EN, ReadingProfile.MANHWA_KO.next())
+        assertEquals(ReadingProfile.MANHUA, ReadingProfile.MANHWA_EN.next())
         assertEquals(ReadingProfile.COMIC, ReadingProfile.MANHUA.next())
         assertEquals(ReadingProfile.MANGA_JA, ReadingProfile.COMIC.next())
     }
@@ -156,12 +163,35 @@ class ReadingProfileTest {
             blocks = rawBlocks,
             density = 1.0f,
             sourceLanguage = "",
-            readingProfile = ReadingProfile.MANHWA
+            readingProfile = ReadingProfile.MANHWA_KO
         )
 
         assertEquals(1, clustered.size)
         // Left-to-right order with space separation
         assertEquals("안녕 하세요", clustered[0].text)
+    }
+
+    @Test
+    fun testManhwaEnProfileEnforcesHorizontalLtrOrderingAndSpaces() {
+        val leftLine = DetectedTextBlock(
+            text = "Solo",
+            boundingBox = rect(100, 100, 180, 140)
+        )
+        val rightLine = DetectedTextBlock(
+            text = "Leveling",
+            boundingBox = rect(190, 100, 290, 140)
+        )
+
+        val rawBlocks = listOf(rightLine, leftLine)
+        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = rawBlocks,
+            density = 1.0f,
+            sourceLanguage = "EN",
+            readingProfile = ReadingProfile.MANHWA_EN
+        )
+
+        assertEquals(1, clustered.size)
+        assertEquals("Solo Leveling", clustered[0].text)
     }
 
     @Test

@@ -383,4 +383,104 @@ class MangaBubbleClustererTest {
         assertEquals(1, clustered.size)
         assertEquals("Wait-- don't", clustered[0].text)
     }
+
+    @Test
+    fun testHorizontalSeparateStackedBubblesDoNotMergeAcrossLargeLineGap() {
+        // Line height = 30. vGap = 155 - 130 = 25 > 0.75 * 30 (22.5)
+        val bubble1 = DetectedTextBlock(
+            text = "Character A speaking",
+            boundingBox = rect(100, 100, 300, 130)
+        )
+        val bubble2 = DetectedTextBlock(
+            text = "Character B answering below",
+            boundingBox = rect(100, 155, 300, 185)
+        )
+
+        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = listOf(bubble1, bubble2),
+            density = 1.0f,
+            sourceLanguage = "EN",
+            readingProfile = ReadingProfile.MANHWA_EN
+        )
+
+        // Must remain 2 separate distinct bubbles because vGap (25) > 0.75 * 30
+        assertEquals(2, clustered.size)
+        assertTrue(clustered.any { it.text == "Character A speaking" })
+        assertTrue(clustered.any { it.text == "Character B answering below" })
+    }
+
+    @Test
+    fun testHorizontalSeparateBubblesDoNotMergeWithLowHorizontalOverlap() {
+        // Line height = 30. vGap = 10 <= 22.5.
+        // bubble1: [100, 100, 200, 130] -> width = 100
+        // bubble2: [180, 140, 280, 170] -> width = 100
+        // X-overlap = 200 - 180 = 20 -> 20% < 50% minWidth
+        val leftBubble = DetectedTextBlock(
+            text = "Left character dialogue",
+            boundingBox = rect(100, 100, 200, 130)
+        )
+        val rightBubble = DetectedTextBlock(
+            text = "Right character dialogue",
+            boundingBox = rect(180, 140, 280, 170)
+        )
+
+        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = listOf(leftBubble, rightBubble),
+            density = 1.0f,
+            sourceLanguage = "EN",
+            readingProfile = ReadingProfile.MANGA_EN
+        )
+
+        // Must NOT merge because X-overlap is only 20% (strictly < 50%)
+        assertEquals(2, clustered.size)
+        assertTrue(clustered.any { it.text == "Left character dialogue" })
+        assertTrue(clustered.any { it.text == "Right character dialogue" })
+    }
+
+    @Test
+    fun testHorizontalProportionGuardRejectsAbnormallyTallClusters() {
+        // Narrow lines stacked vertically: width = 50, line1: [100, 100, 150, 150] (h=50), line2: [100, 155, 150, 210] (h=55)
+        // unionWidth = 50. unionHeight = 110. 110 > 50 * 1.8f (90).
+        val line1 = DetectedTextBlock(
+            text = "Tall narrow line 1",
+            boundingBox = rect(100, 100, 150, 150)
+        )
+        val line2 = DetectedTextBlock(
+            text = "Tall narrow line 2",
+            boundingBox = rect(100, 155, 150, 210)
+        )
+
+        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = listOf(line1, line2),
+            density = 1.0f,
+            sourceLanguage = "EN",
+            readingProfile = ReadingProfile.COMIC
+        )
+
+        // Must reject merge because height (110) > width (50) * 1.8f
+        assertEquals(2, clustered.size)
+    }
+
+    @Test
+    fun testHorizontalValidDialogueLinesMergeProperly() {
+        // Within same bubble: width = 200, h = 30. vGap = 10 <= 22.5, overlap = 100%, height = 70 <= 200 * 1.8
+        val line1 = DetectedTextBlock(
+            text = "I must become stronger",
+            boundingBox = rect(100, 100, 300, 130)
+        )
+        val line2 = DetectedTextBlock(
+            text = "to protect everyone.",
+            boundingBox = rect(100, 140, 300, 170)
+        )
+
+        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = listOf(line1, line2),
+            density = 1.0f,
+            sourceLanguage = "EN",
+            readingProfile = ReadingProfile.MANHWA_EN
+        )
+
+        assertEquals(1, clustered.size)
+        assertEquals("I must become stronger to protect everyone.", clustered[0].text)
+    }
 }

@@ -360,7 +360,8 @@ fun TranslatorMainScreen(
                                             text = when (profile) {
                                                 ReadingProfile.MANGA_JA -> "Vertical RTL (JA)"
                                                 ReadingProfile.MANGA_EN -> "Horizontal LTR (EN)"
-                                                ReadingProfile.MANHWA -> "Horizontal LTR (KO)"
+                                                ReadingProfile.MANHWA_KO -> "Horizontal LTR (KO)"
+                                                ReadingProfile.MANHWA_EN -> "Horizontal LTR (EN)"
                                                 ReadingProfile.MANHUA -> "Horizontal CJK (ZH)"
                                                 ReadingProfile.COMIC -> "Occidental LTR (EN)"
                                             },

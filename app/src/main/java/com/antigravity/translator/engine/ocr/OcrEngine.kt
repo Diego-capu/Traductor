@@ -79,7 +79,8 @@ class OcrEngine {
         val targetEngine = when (profile) {
             ReadingProfile.MANGA_JA -> "JA"
             ReadingProfile.MANGA_EN -> "DEFAULT"
-            ReadingProfile.MANHWA -> "KO"
+            ReadingProfile.MANHWA_KO -> "KO"
+            ReadingProfile.MANHWA_EN -> "DEFAULT"
             ReadingProfile.MANHUA -> "ZH"
             ReadingProfile.COMIC -> "DEFAULT"
         }
@@ -96,7 +97,8 @@ class OcrEngine {
             recognizer = when (profile) {
                 ReadingProfile.MANGA_JA -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
                 ReadingProfile.MANGA_EN -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                ReadingProfile.MANHWA -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
+                ReadingProfile.MANHWA_KO -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
+                ReadingProfile.MANHWA_EN -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                 ReadingProfile.MANHUA -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
                 ReadingProfile.COMIC -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
             }

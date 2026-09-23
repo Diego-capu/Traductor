@@ -35,7 +35,11 @@ class AppPreferences(context: Context) {
         get() {
             val name = prefs.getString(KEY_READING_PROFILE, ReadingProfile.MANGA_JA.name) ?: ReadingProfile.MANGA_JA.name
             return try {
-                if (name == "MANGA") ReadingProfile.MANGA_JA else ReadingProfile.valueOf(name)
+                when (name) {
+                    "MANGA" -> ReadingProfile.MANGA_JA
+                    "MANHWA" -> ReadingProfile.MANHWA_KO
+                    else -> ReadingProfile.valueOf(name)
+                }
             } catch (e: Exception) {
                 ReadingProfile.MANGA_JA
             }

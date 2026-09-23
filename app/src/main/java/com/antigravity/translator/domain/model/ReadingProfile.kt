@@ -33,9 +33,16 @@ enum class ReadingProfile(
         usesSpacedWords = true,
         defaultFormality = "less"
     ),
-    MANHWA(
+    MANHWA_KO(
         title = "Manhwa (KO)",
         defaultSourceLang = "KO",
+        isTategaki = false,
+        usesSpacedWords = true,
+        defaultFormality = "less"
+    ),
+    MANHWA_EN(
+        title = "Manhwa (EN)",
+        defaultSourceLang = "EN",
         isTategaki = false,
         usesSpacedWords = true,
         defaultFormality = "less"
