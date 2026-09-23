@@ -1,6 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
+    id("com.google.firebase.firebase-perf")
 }
 
 android {
@@ -96,6 +98,11 @@ dependencies {
 
     // Encrypted Preferences
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Firebase Performance Monitoring
+    val firebaseBom = platform("com.google.firebase:firebase-bom:33.4.0")
+    implementation(firebaseBom)
+    implementation("com.google.firebase:firebase-perf")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

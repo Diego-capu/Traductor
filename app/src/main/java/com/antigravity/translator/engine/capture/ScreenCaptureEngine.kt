@@ -14,6 +14,7 @@ import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.WindowManager
+import com.antigravity.translator.telemetry.AppPerformanceTracker
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -200,44 +201,53 @@ class ScreenCaptureEngine(
      * returns null, so this falls back to a clean copy of the last cached frame.
      */
     fun acquireLatestFrame(): Bitmap? {
-        lock.withLock {
-            val reader = imageReader ?: return null
+        return AppPerformanceTracker.trace("screen_frame_capture") { perfTrace ->
+            lock.withLock {
+                val reader = imageReader ?: return@trace null
 
-            // 1. Try to acquire the freshest frame if available right now
-            var extractedBitmap: Bitmap? = null
-            try {
-                val image = reader.acquireLatestImage() ?: reader.acquireNextImage()
-                if (image != null) {
-                    try {
-                        extractedBitmap = imageToBitmap(image)
-                        if (extractedBitmap != null) {
-                            synchronized(cacheLock) {
-                                val old = lastCachedBitmap
-                                lastCachedBitmap = extractedBitmap.copy(extractedBitmap.config ?: Bitmap.Config.ARGB_8888, false)
-                                old?.recycle()
+                // 1. Try to acquire the freshest frame if available right now
+                var extractedBitmap: Bitmap? = null
+                try {
+                    val image = reader.acquireLatestImage() ?: reader.acquireNextImage()
+                    if (image != null) {
+                        try {
+                            extractedBitmap = imageToBitmap(image)
+                            if (extractedBitmap != null) {
+                                synchronized(cacheLock) {
+                                    val old = lastCachedBitmap
+                                    lastCachedBitmap = extractedBitmap.copy(extractedBitmap.config ?: Bitmap.Config.ARGB_8888, false)
+                                    old?.recycle()
+                                }
                             }
+                        } finally {
+                            image.close()
                         }
-                    } finally {
-                        image.close()
+                    }
+                } catch (e: Exception) {
+                    Log.w(tag, "Direct acquireImage attempt failed, checking cached frame: ${e.message}")
+                }
+
+                if (extractedBitmap != null) {
+                    perfTrace.putMetric("frame_width", extractedBitmap.width.toLong())
+                    perfTrace.putMetric("frame_height", extractedBitmap.height.toLong())
+                    return@trace extractedBitmap
+                }
+
+                // 2. Fallback to cached frame if screen was stationary/static
+                synchronized(cacheLock) {
+                    val cached = lastCachedBitmap
+                    if (cached != null && !cached.isRecycled) {
+                        val fallback = cached.copy(cached.config ?: Bitmap.Config.ARGB_8888, false)
+                        if (fallback != null) {
+                            perfTrace.putMetric("frame_width", fallback.width.toLong())
+                            perfTrace.putMetric("frame_height", fallback.height.toLong())
+                        }
+                        return@trace fallback
                     }
                 }
-            } catch (e: Exception) {
-                Log.w(tag, "Direct acquireImage attempt failed, checking cached frame: ${e.message}")
-            }
 
-            if (extractedBitmap != null) {
-                return extractedBitmap
+                return@trace null
             }
-
-            // 2. Fallback to cached frame if screen was stationary/static
-            synchronized(cacheLock) {
-                val cached = lastCachedBitmap
-                if (cached != null && !cached.isRecycled) {
-                    return cached.copy(cached.config ?: Bitmap.Config.ARGB_8888, false)
-                }
-            }
-
-            return null
         }
     }
 

@@ -9,6 +9,7 @@ import android.graphics.Rect
 import android.util.Log
 import com.antigravity.translator.domain.model.DetectedTextBlock
 import com.antigravity.translator.domain.model.ReadingProfile
+import com.antigravity.translator.telemetry.AppPerformanceTracker
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
@@ -295,128 +296,138 @@ class OcrEngine {
      */
     suspend fun processFrame(bitmap: Bitmap): List<DetectedTextBlock> = withContext(Dispatchers.Default) {
         if (bitmap.width <= 0 || bitmap.height <= 0) return@withContext emptyList()
-        lastOcrError = null
+        AppPerformanceTracker.trace("ocr_frame_processing") { perfTrace ->
+            perfTrace.putAttribute("reading_profile", activeProfile.name)
+            lastOcrError = null
 
-        val inputImage = InputImage.fromBitmap(bitmap, 0)
-        val activeRecognizer = synchronized(recognizerLock) {
-            recognizer ?: run {
-                val fallback = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                recognizer = fallback
-                fallback
-            }
-        }
-        val lang = currentLangCode
-        val isCurrentCjk = lang in listOf("JA", "ZH", "KO")
-
-        // PASS 1: Run primary recognizer directly on raw, uncompressed RGB bitmap
-        var detectedBlocks = runOcrPass(activeRecognizer, inputImage)
-
-        // Content-aware validation:
-        if (detectedBlocks.isNotEmpty()) {
-            if (isCurrentCjk && !hasCjkText(detectedBlocks) && hasLatinLetters(detectedBlocks)) {
-                // Primary is CJK (e.g. Japanese), but detected ONLY Latin text (English scanlation).
-                // Specialized CJK recognizers produce broken or misaligned Latin boxes.
-                Log.d(tag, "CJK recognizer ($lang) detected Latin text. Falling back to Latin recognizer for optimal scanlation accuracy...")
-                val defaultRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                try {
-                    val latinBlocks = runOcrPass(defaultRecognizer, inputImage)
-                    if (latinBlocks.isNotEmpty()) {
-                        Log.d(tag, "Latin recognizer successfully recognized ${latinBlocks.size} English scanlation blocks")
-                        return@withContext latinBlocks
-                    }
-                } finally {
-                    try { defaultRecognizer.close() } catch (_: Exception) {}
+            val inputImage = InputImage.fromBitmap(bitmap, 0)
+            val activeRecognizer = synchronized(recognizerLock) {
+                recognizer ?: run {
+                    val fallback = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                    recognizer = fallback
+                    fallback
                 }
-            } else if (!isCurrentCjk && !hasLatinLetters(detectedBlocks) && activeProfile.defaultSourceLang in listOf("JA", "ZH", "KO")) {
-                // Primary is Latin, but detected no Latin letters at all. Maybe raw CJK text with stray dots.
-                val cjkRecognizer = createCjkRecognizer(activeProfile.defaultSourceLang)
-                if (cjkRecognizer != null) {
+            }
+            val lang = currentLangCode
+            val isCurrentCjk = lang in listOf("JA", "ZH", "KO")
+            perfTrace.putAttribute("lang_code", lang)
+
+            // PASS 1: Run primary recognizer directly on raw, uncompressed RGB bitmap
+            var detectedBlocks = runOcrPass(activeRecognizer, inputImage)
+
+            // Content-aware validation:
+            if (detectedBlocks.isNotEmpty()) {
+                if (isCurrentCjk && !hasCjkText(detectedBlocks) && hasLatinLetters(detectedBlocks)) {
+                    // Primary is CJK (e.g. Japanese), but detected ONLY Latin text (English scanlation).
+                    // Specialized CJK recognizers produce broken or misaligned Latin boxes.
+                    Log.d(tag, "CJK recognizer ($lang) detected Latin text. Falling back to Latin recognizer for optimal scanlation accuracy...")
+                    val defaultRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                     try {
-                        val cjkBlocks = runOcrPass(cjkRecognizer, inputImage)
-                        if (cjkBlocks.isNotEmpty() && hasCjkText(cjkBlocks)) {
-                            Log.d(tag, "CJK fallback for ${activeProfile.defaultSourceLang} detected ${cjkBlocks.size} CJK blocks")
-                            return@withContext cjkBlocks
+                        val latinBlocks = runOcrPass(defaultRecognizer, inputImage)
+                        if (latinBlocks.isNotEmpty()) {
+                            Log.d(tag, "Latin recognizer successfully recognized ${latinBlocks.size} English scanlation blocks")
+                            perfTrace.putMetric("detected_blocks_count", latinBlocks.size.toLong())
+                            return@trace latinBlocks
                         }
                     } finally {
-                        try { cjkRecognizer.close() } catch (_: Exception) {}
+                        try { defaultRecognizer.close() } catch (_: Exception) {}
                     }
-                }
-            } else {
-                Log.d(tag, "Pass 1 (Primary: $lang) detected ${detectedBlocks.size} blocks")
-                return@withContext detectedBlocks
-            }
-        }
-
-        // PASS 2: If primary returned 0 blocks, try opposite script recognizer
-        if (detectedBlocks.isEmpty()) {
-            if (isCurrentCjk) {
-                Log.d(tag, "Primary recognizer ($lang) found 0 blocks. Attempting fallback to Default Latin recognizer...")
-                val defaultRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                try {
-                    detectedBlocks = runOcrPass(defaultRecognizer, inputImage)
-                    if (detectedBlocks.isNotEmpty()) {
-                        Log.d(tag, "Pass 2 (Default Latin fallback) successfully detected ${detectedBlocks.size} blocks!")
-                        return@withContext detectedBlocks
-                    }
-                } finally {
-                    try { defaultRecognizer.close() } catch (_: Exception) {}
-                }
-            } else if (activeProfile.defaultSourceLang in listOf("JA", "ZH", "KO")) {
-                Log.d(tag, "Default Latin found 0 blocks. Attempting fallback to specialized CJK (${activeProfile.defaultSourceLang})...")
-                val cjkRecognizer = createCjkRecognizer(activeProfile.defaultSourceLang)
-                if (cjkRecognizer != null) {
-                    try {
-                        detectedBlocks = runOcrPass(cjkRecognizer, inputImage)
-                        if (detectedBlocks.isNotEmpty()) {
-                            Log.d(tag, "Pass 2 (CJK fallback: ${activeProfile.defaultSourceLang}) detected ${detectedBlocks.size} blocks!")
-                            return@withContext detectedBlocks
-                        }
-                    } finally {
-                        try { cjkRecognizer.close() } catch (_: Exception) {}
-                    }
-                }
-            }
-        }
-
-        // PASS 3: If still 0 blocks, try contrast-enhanced grayscale as last resort for faint screentones
-        val preprocessed = try {
-            preprocessMangaBitmap(bitmap)
-        } catch (e: Exception) {
-            null
-        }
-        if (preprocessed != null) {
-            try {
-                val preprocessedImage = InputImage.fromBitmap(preprocessed, 0)
-                val currentPass3Recognizer = synchronized(recognizerLock) { recognizer } ?: activeRecognizer
-                detectedBlocks = runOcrPass(currentPass3Recognizer, preprocessedImage)
-                if (detectedBlocks.isEmpty()) {
-                    if (isCurrentCjk) {
-                        val defaultRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                } else if (!isCurrentCjk && !hasLatinLetters(detectedBlocks) && activeProfile.defaultSourceLang in listOf("JA", "ZH", "KO")) {
+                    // Primary is Latin, but detected no Latin letters at all. Maybe raw CJK text with stray dots.
+                    val cjkRecognizer = createCjkRecognizer(activeProfile.defaultSourceLang)
+                    if (cjkRecognizer != null) {
                         try {
-                            detectedBlocks = runOcrPass(defaultRecognizer, preprocessedImage)
+                            val cjkBlocks = runOcrPass(cjkRecognizer, inputImage)
+                            if (cjkBlocks.isNotEmpty() && hasCjkText(cjkBlocks)) {
+                                Log.d(tag, "CJK fallback for ${activeProfile.defaultSourceLang} detected ${cjkBlocks.size} CJK blocks")
+                                perfTrace.putMetric("detected_blocks_count", cjkBlocks.size.toLong())
+                                return@trace cjkBlocks
+                            }
                         } finally {
-                            try { defaultRecognizer.close() } catch (_: Exception) {}
+                            try { cjkRecognizer.close() } catch (_: Exception) {}
                         }
-                    } else if (activeProfile.defaultSourceLang in listOf("JA", "ZH", "KO")) {
-                        val cjkRecognizer = createCjkRecognizer(activeProfile.defaultSourceLang)
-                        if (cjkRecognizer != null) {
+                    }
+                } else {
+                    Log.d(tag, "Pass 1 (Primary: $lang) detected ${detectedBlocks.size} blocks")
+                    perfTrace.putMetric("detected_blocks_count", detectedBlocks.size.toLong())
+                    return@trace detectedBlocks
+                }
+            }
+
+            // PASS 2: If primary returned 0 blocks, try opposite script recognizer
+            if (detectedBlocks.isEmpty()) {
+                if (isCurrentCjk) {
+                    Log.d(tag, "Primary recognizer ($lang) found 0 blocks. Attempting fallback to Default Latin recognizer...")
+                    val defaultRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                    try {
+                        detectedBlocks = runOcrPass(defaultRecognizer, inputImage)
+                        if (detectedBlocks.isNotEmpty()) {
+                            Log.d(tag, "Pass 2 (Default Latin fallback) successfully detected ${detectedBlocks.size} blocks!")
+                            perfTrace.putMetric("detected_blocks_count", detectedBlocks.size.toLong())
+                            return@trace detectedBlocks
+                        }
+                    } finally {
+                        try { defaultRecognizer.close() } catch (_: Exception) {}
+                    }
+                } else if (activeProfile.defaultSourceLang in listOf("JA", "ZH", "KO")) {
+                    Log.d(tag, "Default Latin found 0 blocks. Attempting fallback to specialized CJK (${activeProfile.defaultSourceLang})...")
+                    val cjkRecognizer = createCjkRecognizer(activeProfile.defaultSourceLang)
+                    if (cjkRecognizer != null) {
+                        try {
+                            detectedBlocks = runOcrPass(cjkRecognizer, inputImage)
+                            if (detectedBlocks.isNotEmpty()) {
+                                Log.d(tag, "Pass 2 (CJK fallback: ${activeProfile.defaultSourceLang}) detected ${detectedBlocks.size} blocks!")
+                                perfTrace.putMetric("detected_blocks_count", detectedBlocks.size.toLong())
+                                return@trace detectedBlocks
+                            }
+                        } finally {
+                            try { cjkRecognizer.close() } catch (_: Exception) {}
+                        }
+                    }
+                }
+            }
+
+            // PASS 3: If still 0 blocks, try contrast-enhanced grayscale as last resort for faint screentones
+            val preprocessed = try {
+                preprocessMangaBitmap(bitmap)
+            } catch (e: Exception) {
+                null
+            }
+            if (preprocessed != null) {
+                try {
+                    val preprocessedImage = InputImage.fromBitmap(preprocessed, 0)
+                    val currentPass3Recognizer = synchronized(recognizerLock) { recognizer } ?: activeRecognizer
+                    detectedBlocks = runOcrPass(currentPass3Recognizer, preprocessedImage)
+                    if (detectedBlocks.isEmpty()) {
+                        if (isCurrentCjk) {
+                            val defaultRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                             try {
-                                detectedBlocks = runOcrPass(cjkRecognizer, preprocessedImage)
+                                detectedBlocks = runOcrPass(defaultRecognizer, preprocessedImage)
                             } finally {
-                                try { cjkRecognizer.close() } catch (_: Exception) {}
+                                try { defaultRecognizer.close() } catch (_: Exception) {}
+                            }
+                        } else if (activeProfile.defaultSourceLang in listOf("JA", "ZH", "KO")) {
+                            val cjkRecognizer = createCjkRecognizer(activeProfile.defaultSourceLang)
+                            if (cjkRecognizer != null) {
+                                try {
+                                    detectedBlocks = runOcrPass(cjkRecognizer, preprocessedImage)
+                                } finally {
+                                    try { cjkRecognizer.close() } catch (_: Exception) {}
+                                }
                             }
                         }
                     }
+                    if (detectedBlocks.isNotEmpty()) {
+                        Log.d(tag, "Pass 3 (Contrast-enhanced) detected ${detectedBlocks.size} blocks")
+                    }
+                } finally {
+                    preprocessed.recycle()
                 }
-                if (detectedBlocks.isNotEmpty()) {
-                    Log.d(tag, "Pass 3 (Contrast-enhanced) detected ${detectedBlocks.size} blocks")
-                }
-            } finally {
-                preprocessed.recycle()
             }
-        }
 
-        detectedBlocks
+            perfTrace.putMetric("detected_blocks_count", detectedBlocks.size.toLong())
+            detectedBlocks
+        }
     }
 
     /**

@@ -9,6 +9,7 @@ import com.antigravity.translator.data.model.TelemetryData
 import com.antigravity.translator.data.pref.AppPreferences
 import com.antigravity.translator.domain.model.DetectedTextBlock
 import com.antigravity.translator.domain.model.TranslatedBlock
+import com.antigravity.translator.telemetry.AppPerformanceTracker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,135 +66,145 @@ class DeepLRepository(
             return@withContext Result.success(emptyList())
         }
 
-        val apiKey = appPreferences.apiKey.trim()
-        if (apiKey.isEmpty()) {
-            return@withContext Result.failure(IllegalStateException("DeepL API Key is not configured"))
-        }
+        AppPerformanceTracker.trace("deepl_batch_translation") { perfTrace ->
+            perfTrace.putAttribute("source_lang", sourceLang.ifBlank { "AUTO" })
+            perfTrace.putAttribute("target_lang", targetLang)
+            perfTrace.putMetric("total_blocks", blocks.size.toLong())
 
-        val authHeader = "DeepL-Auth-Key $apiKey"
-        val translatedResultsMap = mutableMapOf<String, String>()
-        val uncachedUniqueTexts = mutableListOf<String>()
-        var charactersSavedInThisCall = 0L
-
-        // 1. Separate cache hits from misses
-        for (block in blocks) {
-            val cleanText = block.text.trim()
-            if (cleanText.isEmpty()) {
-                translatedResultsMap[cleanText] = ""
-                continue
+            val apiKey = appPreferences.apiKey.trim()
+            if (apiKey.isEmpty()) {
+                return@trace Result.failure(IllegalStateException("DeepL API Key is not configured"))
             }
 
-            val cached = cache.get(sourceLang, targetLang, cleanText)
-            if (cached != null) {
-                translatedResultsMap[cleanText] = cached
-                charactersSavedInThisCall += cleanText.length
-            } else if (!uncachedUniqueTexts.contains(cleanText)) {
-                uncachedUniqueTexts.add(cleanText)
-            }
-        }
+            val authHeader = "DeepL-Auth-Key $apiKey"
+            val translatedResultsMap = mutableMapOf<String, String>()
+            val uncachedUniqueTexts = mutableListOf<String>()
+            var charactersSavedInThisCall = 0L
 
-        // Record cache savings telemetry
-        if (charactersSavedInThisCall > 0) {
-            try {
-                appPreferences.cumulativeCharactersSaved += charactersSavedInThisCall
-                _telemetryState.update { current ->
-                    current.copy(
-                        sessionCharactersSavedByCache = current.sessionCharactersSavedByCache + charactersSavedInThisCall
-                    )
-                }
-            } catch (e: Exception) {
-                Log.w(tag, "Failed to update cache telemetry", e)
-            }
-        }
-
-        // 2. Fetch uncached items in batch if any
-        if (uncachedUniqueTexts.isNotEmpty()) {
-            val charactersSentInThisCall = uncachedUniqueTexts.sumOf { it.length.toLong() }
-            try {
-                appPreferences.cumulativeTotalRequests += 1
-                _telemetryState.update { it.copy(totalRequests = it.totalRequests + 1) }
-
-                val normalizedTargetLang = normalizeTargetLanguage(targetLang)
-                val supportsFormality = setOf("DE", "FR", "IT", "ES", "NL", "PL", "PT", "PT-BR", "PT-PT", "RU", "JA")
-                val profileFormality = appPreferences.readingProfile.defaultFormality
-                val formalityValue = if (supportsFormality.contains(normalizedTargetLang) && profileFormality != null) {
-                    profileFormality
-                } else null
-
-                val request = DeepLTranslationRequest(
-                    text = uncachedUniqueTexts,
-                    targetLang = normalizedTargetLang,
-                    sourceLang = if (sourceLang.isNotBlank()) sourceLang.trim().uppercase() else null,
-                    formality = formalityValue
-                )
-
-                val response = getApiService().translateText(authHeader, request)
-
-                if (!response.isSuccessful) {
-                    val errorCode = response.code()
-                    val errorMessage = when (errorCode) {
-                        403 -> "Invalid DeepL API Key (403 Forbidden)"
-                        456 -> "DeepL API translation quota exceeded (456)"
-                        429 -> "Too many requests. DeepL rate limit reached (429)"
-                        else -> "DeepL API error ($errorCode): ${response.errorBody()?.string()}"
-                    }
-                    Log.e(tag, "DeepL Request Failed: $errorMessage")
-
-                    // Track failed request telemetry
-                    appPreferences.cumulativeFailedRequests += 1
-                    _telemetryState.update { it.copy(failedRequests = it.failedRequests + 1) }
-
-                    return@withContext Result.failure(RuntimeException(errorMessage))
+            // 1. Separate cache hits from misses
+            for (block in blocks) {
+                val cleanText = block.text.trim()
+                if (cleanText.isEmpty()) {
+                    translatedResultsMap[cleanText] = ""
+                    continue
                 }
 
-                val body = response.body()
-                if (body != null && body.translations.size == uncachedUniqueTexts.size) {
-                    for (i in uncachedUniqueTexts.indices) {
-                        val originalText = uncachedUniqueTexts[i]
-                        val translatedText = body.translations[i].text
-                        cache.put(sourceLang, targetLang, originalText, translatedText)
-                        translatedResultsMap[originalText] = translatedText
-                    }
+                val cached = cache.get(sourceLang, targetLang, cleanText)
+                if (cached != null) {
+                    translatedResultsMap[cleanText] = cached
+                    charactersSavedInThisCall += cleanText.length
+                } else if (!uncachedUniqueTexts.contains(cleanText)) {
+                    uncachedUniqueTexts.add(cleanText)
+                }
+            }
 
-                    // Record successfully sent characters telemetry
-                    appPreferences.cumulativeCharactersSent += charactersSentInThisCall
+            perfTrace.putMetric("uncached_texts_count", uncachedUniqueTexts.size.toLong())
+            perfTrace.putMetric("cache_hits_count", (blocks.size - uncachedUniqueTexts.size).toLong())
+
+            // Record cache savings telemetry
+            if (charactersSavedInThisCall > 0) {
+                try {
+                    appPreferences.cumulativeCharactersSaved += charactersSavedInThisCall
                     _telemetryState.update { current ->
                         current.copy(
-                            sessionCharactersSent = current.sessionCharactersSent + charactersSentInThisCall,
-                            serverUsedCharacters = current.serverUsedCharacters + charactersSentInThisCall
+                            sessionCharactersSavedByCache = current.sessionCharactersSavedByCache + charactersSavedInThisCall
                         )
                     }
-                } else {
-                    val msg = "DeepL returned mismatched translation item count"
-                    Log.w(tag, msg)
-                    appPreferences.cumulativeFailedRequests += 1
-                    _telemetryState.update { it.copy(failedRequests = it.failedRequests + 1) }
-                    return@withContext Result.failure(IllegalStateException(msg))
+                } catch (e: Exception) {
+                    Log.w(tag, "Failed to update cache telemetry", e)
                 }
-            } catch (e: Exception) {
-                Log.e(tag, "Exception during DeepL API batch translation", e)
-                try {
-                    appPreferences.cumulativeFailedRequests += 1
-                    _telemetryState.update { it.copy(failedRequests = it.failedRequests + 1) }
-                } catch (ignored: Exception) {}
-                return@withContext Result.failure(e)
             }
-        }
 
-        // 3. Assemble final list of TranslatedBlock maintaining coordinate mapping
-        val resultList = blocks.map { block ->
-            val cleanText = block.text.trim()
-            val translatedText = translatedResultsMap[cleanText] ?: block.text
-            TranslatedBlock(
-                id = block.id,
-                originalText = block.text,
-                translatedText = translatedText,
-                boundingBox = block.boundingBox,
-                originalTextSizePx = block.originalTextSizePx
-            )
-        }
+            // 2. Fetch uncached items in batch if any
+            if (uncachedUniqueTexts.isNotEmpty()) {
+                val charactersSentInThisCall = uncachedUniqueTexts.sumOf { it.length.toLong() }
+                perfTrace.putMetric("characters_sent", charactersSentInThisCall)
+                try {
+                    appPreferences.cumulativeTotalRequests += 1
+                    _telemetryState.update { it.copy(totalRequests = it.totalRequests + 1) }
 
-        Result.success(resultList)
+                    val normalizedTargetLang = normalizeTargetLanguage(targetLang)
+                    val supportsFormality = setOf("DE", "FR", "IT", "ES", "NL", "PL", "PT", "PT-BR", "PT-PT", "RU", "JA")
+                    val profileFormality = appPreferences.readingProfile.defaultFormality
+                    val formalityValue = if (supportsFormality.contains(normalizedTargetLang) && profileFormality != null) {
+                        profileFormality
+                    } else null
+
+                    val request = DeepLTranslationRequest(
+                        text = uncachedUniqueTexts,
+                        targetLang = normalizedTargetLang,
+                        sourceLang = if (sourceLang.isNotBlank()) sourceLang.trim().uppercase() else null,
+                        formality = formalityValue
+                    )
+
+                    val response = getApiService().translateText(authHeader, request)
+
+                    if (!response.isSuccessful) {
+                        val errorCode = response.code()
+                        val errorMessage = when (errorCode) {
+                            403 -> "Invalid DeepL API Key (403 Forbidden)"
+                            456 -> "DeepL API translation quota exceeded (456)"
+                            429 -> "Too many requests. DeepL rate limit reached (429)"
+                            else -> "DeepL API error ($errorCode): ${response.errorBody()?.string()}"
+                        }
+                        Log.e(tag, "DeepL Request Failed: $errorMessage")
+
+                        // Track failed request telemetry
+                        appPreferences.cumulativeFailedRequests += 1
+                        _telemetryState.update { it.copy(failedRequests = it.failedRequests + 1) }
+
+                        return@trace Result.failure(RuntimeException(errorMessage))
+                    }
+
+                    val body = response.body()
+                    if (body != null && body.translations.size == uncachedUniqueTexts.size) {
+                        for (i in uncachedUniqueTexts.indices) {
+                            val originalText = uncachedUniqueTexts[i]
+                            val translatedText = body.translations[i].text
+                            cache.put(sourceLang, targetLang, originalText, translatedText)
+                            translatedResultsMap[originalText] = translatedText
+                        }
+
+                        // Record successfully sent characters telemetry
+                        appPreferences.cumulativeCharactersSent += charactersSentInThisCall
+                        _telemetryState.update { current ->
+                            current.copy(
+                                sessionCharactersSent = current.sessionCharactersSent + charactersSentInThisCall,
+                                serverUsedCharacters = current.serverUsedCharacters + charactersSentInThisCall
+                            )
+                        }
+                    } else {
+                        val msg = "DeepL returned mismatched translation item count"
+                        Log.w(tag, msg)
+                        appPreferences.cumulativeFailedRequests += 1
+                        _telemetryState.update { it.copy(failedRequests = it.failedRequests + 1) }
+                        return@trace Result.failure(IllegalStateException(msg))
+                    }
+                } catch (e: Exception) {
+                    Log.e(tag, "Exception during DeepL API batch translation", e)
+                    try {
+                        appPreferences.cumulativeFailedRequests += 1
+                        _telemetryState.update { it.copy(failedRequests = it.failedRequests + 1) }
+                    } catch (ignored: Exception) {}
+                    return@trace Result.failure(e)
+                }
+            }
+
+            // 3. Assemble final list of TranslatedBlock maintaining coordinate mapping
+            val resultList = blocks.map { block ->
+                val cleanText = block.text.trim()
+                val translatedText = translatedResultsMap[cleanText] ?: block.text
+                TranslatedBlock(
+                    id = block.id,
+                    originalText = block.text,
+                    translatedText = translatedText,
+                    boundingBox = block.boundingBox,
+                    originalTextSizePx = block.originalTextSizePx
+                )
+            }
+
+            Result.success(resultList)
+        }
     }
 
     /**
@@ -202,45 +213,49 @@ class DeepLRepository(
      * On network error, timeout, or invalid response, preserves last known values and flags isOfflineQuota.
      */
     suspend fun fetchRemoteUsage(): Result<DeepLUsageResponse> = withContext(Dispatchers.IO) {
-        val apiKey = appPreferences.apiKey.trim()
-        if (apiKey.isEmpty()) {
-            applyOfflineTelemetryFallback()
-            return@withContext Result.failure(IllegalStateException("DeepL API Key no configurada"))
-        }
-
-        try {
-            val authHeader = "DeepL-Auth-Key $apiKey"
-            val response = getApiService().getUsage(authHeader)
-
-            if (response.isSuccessful) {
-                val usage = response.body()
-                if (usage != null) {
-                    appPreferences.lastServerUsedChars = usage.characterCount
-                    appPreferences.lastServerCharLimit = usage.characterLimit
-
-                    _telemetryState.update { current ->
-                        current.copy(
-                            serverUsedCharacters = usage.characterCount,
-                            serverCharacterLimit = usage.characterLimit,
-                            isOfflineQuota = false
-                        )
-                    }
-                    Log.d(tag, "DeepL Quota fetched: ${usage.characterCount} / ${usage.characterLimit}")
-                    Result.success(usage)
-                } else {
-                    applyOfflineTelemetryFallback()
-                    Result.failure(IllegalStateException("Respuesta de uso vacía"))
-                }
-            } else {
-                val msg = "Error al consultar cuota DeepL (${response.code()})"
-                Log.w(tag, msg)
+        AppPerformanceTracker.trace("deepl_fetch_usage") { perfTrace ->
+            val apiKey = appPreferences.apiKey.trim()
+            if (apiKey.isEmpty()) {
                 applyOfflineTelemetryFallback()
-                Result.failure(RuntimeException(msg))
+                return@trace Result.failure(IllegalStateException("DeepL API Key no configurada"))
             }
-        } catch (e: Exception) {
-            Log.w(tag, "Fallo al consultar /v2/usage: ${e.message}", e)
-            applyOfflineTelemetryFallback()
-            Result.failure(e)
+
+            try {
+                val authHeader = "DeepL-Auth-Key $apiKey"
+                val response = getApiService().getUsage(authHeader)
+
+                if (response.isSuccessful) {
+                    val usage = response.body()
+                    if (usage != null) {
+                        appPreferences.lastServerUsedChars = usage.characterCount
+                        appPreferences.lastServerCharLimit = usage.characterLimit
+
+                        _telemetryState.update { current ->
+                            current.copy(
+                                serverUsedCharacters = usage.characterCount,
+                                serverCharacterLimit = usage.characterLimit,
+                                isOfflineQuota = false
+                            )
+                        }
+                        perfTrace.putMetric("server_used_chars", usage.characterCount)
+                        perfTrace.putMetric("server_char_limit", usage.characterLimit)
+                        Log.d(tag, "DeepL Quota fetched: ${usage.characterCount} / ${usage.characterLimit}")
+                        Result.success(usage)
+                    } else {
+                        applyOfflineTelemetryFallback()
+                        Result.failure(IllegalStateException("Respuesta de uso vacía"))
+                    }
+                } else {
+                    val msg = "Error al consultar cuota DeepL (${response.code()})"
+                    Log.w(tag, msg)
+                    applyOfflineTelemetryFallback()
+                    Result.failure(RuntimeException(msg))
+                }
+            } catch (e: Exception) {
+                Log.w(tag, "Fallo al consultar /v2/usage: ${e.message}", e)
+                applyOfflineTelemetryFallback()
+                Result.failure(e)
+            }
         }
     }
 
