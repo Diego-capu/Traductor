@@ -5,7 +5,6 @@ import com.antigravity.translator.data.api.DeepLTranslationResponse
 import com.antigravity.translator.data.api.DeepLTranslationResult
 import com.antigravity.translator.data.api.DeepLUsageResponse
 import com.antigravity.translator.data.model.TelemetryData
-import com.google.gson.Gson
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import org.junit.Assert.assertEquals
@@ -60,21 +59,48 @@ class TelemetryAndMoshiCompatibilityTest {
     }
 
     @Test
+    fun testDeepLModelsMoshiDeserializationCompatibility() {
+        val moshi = Moshi.Builder()
+            .addLast(KotlinJsonAdapterFactory())
+            .build()
+
+        val responseJson = "{\"translations\":[{\"detected_source_language\":\"EN\",\"text\":\"Hola\"}]}"
+        val responseAdapter = moshi.adapter(DeepLTranslationResponse::class.java)
+        val response = responseAdapter.fromJson(responseJson)
+        assertNotNull(response)
+        assertEquals(1, response?.translations?.size)
+        assertEquals("Hola", response?.translations?.get(0)?.text)
+        assertEquals("EN", response?.translations?.get(0)?.detectedSourceLanguage)
+    }
+
+    @Test
     fun testDeepLModelsGsonCompatibility() {
-        val gson = Gson()
+        val gson = com.google.gson.GsonBuilder()
+            .setFieldNamingPolicy(com.google.gson.FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
+            .create()
+
         val request = DeepLTranslationRequest(
-            text = listOf("Hello"),
+            text = listOf("Hello", "World"),
             targetLang = "ES",
-            formality = "less"
+            sourceLang = "EN",
+            formality = "default"
         )
         val json = gson.toJson(request)
-        assertTrue(json.contains("\"formality\":\"less\""))
+        assertTrue(json.contains("\"target_lang\":\"ES\""))
+        assertTrue(json.contains("\"source_lang\":\"EN\""))
 
         val responseJson = "{\"translations\":[{\"detected_source_language\":\"EN\",\"text\":\"Hola\"}]}"
         val response = gson.fromJson(responseJson, DeepLTranslationResponse::class.java)
+        assertNotNull(response)
         assertEquals(1, response.translations.size)
         assertEquals("Hola", response.translations[0].text)
         assertEquals("EN", response.translations[0].detectedSourceLanguage)
+
+        val usageJson = "{\"character_count\":2500,\"character_limit\":500000}"
+        val usage = gson.fromJson(usageJson, DeepLUsageResponse::class.java)
+        assertNotNull(usage)
+        assertEquals(2500L, usage.characterCount)
+        assertEquals(500000L, usage.characterLimit)
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.antigravity.translator.data.api
 
+import com.google.gson.FieldNamingPolicy
+import com.google.gson.GsonBuilder
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -59,10 +61,14 @@ object RetrofitClient {
 
         val baseUrl = if (isPro) BASE_URL_PRO else BASE_URL_FREE
 
+        val gson = GsonBuilder()
+            .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
+            .create()
+
         return Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(DeepLApiService::class.java)
     }

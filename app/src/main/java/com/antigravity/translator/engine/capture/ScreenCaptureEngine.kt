@@ -104,17 +104,17 @@ class ScreenCaptureEngine(
 
     /**
      * Safely initializes ImageReader and VirtualDisplay.
-     * Note: maxImages is capped at 2 to eliminate frame queue buildup.
+     * Note: maxImages is set to 3 for triple buffering to prevent HardwareBuffer dequeue stalls.
      */
     private fun initVirtualDisplay() {
         lock.withLock {
             try {
-                // Initialize ImageReader with RGBA_8888 and maxImages = 2
+                // Initialize ImageReader with RGBA_8888 and maxImages = 3 (triple buffering)
                 val reader = ImageReader.newInstance(
                     screenWidth,
                     screenHeight,
                     PixelFormat.RGBA_8888,
-                    2
+                    3
                 )
                 imageReader = reader
 

@@ -338,4 +338,49 @@ class MangaBubbleClustererTest {
         // Must NOT be discarded by furigana filtering
         assertEquals("Where are you?", clustered[0].text)
     }
+
+    @Test
+    fun testEmDashAndPunctuationPreserveSpacingAndDoNotStrip() {
+        val line1 = DetectedTextBlock(
+            text = "Wait—",
+            boundingBox = rect(100, 100, 200, 130)
+        )
+        val line2 = DetectedTextBlock(
+            text = "don't go!",
+            boundingBox = rect(100, 135, 200, 165)
+        )
+
+        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = listOf(line1, line2),
+            density = 1.0f,
+            sourceLanguage = "EN",
+            readingProfile = ReadingProfile.MANGA_EN
+        )
+
+        assertEquals(1, clustered.size)
+        // Em-dash must retain word spacing, never fusing into "Waitdon't"
+        assertEquals("Wait— don't go!", clustered[0].text)
+    }
+
+    @Test
+    fun testDoubleDashPreservesSpacing() {
+        val line1 = DetectedTextBlock(
+            text = "Wait--",
+            boundingBox = rect(100, 100, 200, 130)
+        )
+        val line2 = DetectedTextBlock(
+            text = "don't",
+            boundingBox = rect(100, 135, 200, 165)
+        )
+
+        val clustered = MangaBubbleClusterer.clusterMangaBubbles(
+            blocks = listOf(line1, line2),
+            density = 1.0f,
+            sourceLanguage = "EN",
+            readingProfile = ReadingProfile.COMIC
+        )
+
+        assertEquals(1, clustered.size)
+        assertEquals("Wait-- don't", clustered[0].text)
+    }
 }

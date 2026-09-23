@@ -385,10 +385,15 @@ object MangaBubbleClusterer {
                         }
                     } else {
                         // In Western / Korean languages (Manhwa / Comic): join with spaces or handle hyphens
-                        if (sb.endsWith("-") && !sb.endsWith("--")) {
-                            sb.setLength(sb.length - 1) // Remove hyphen wrap
+                        val prevChar = if (sb.length >= 2) sb[sb.length - 2] else ' '
+                        val nextChar = currentText.firstOrNull() ?: ' '
+                        val isWordBreakHyphen = sb.endsWith("-") && !sb.endsWith("--") && prevChar.isLetter() && nextChar.isLetter()
+
+                        if (isWordBreakHyphen) {
+                            sb.setLength(sb.length - 1) // Remove syllabic hyphen wrap (e.g. "cow-" + "ardly" -> "cowardly")
                             sb.append(currentText)
                         } else {
+                            // Punctuation, em-dashes (— or --), or independent words: separate with natural space
                             sb.append(" ").append(currentText)
                         }
                     }

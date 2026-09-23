@@ -240,6 +240,10 @@ class OcrEngine {
             detectedBlocks
         } catch (e: Exception) {
             val msg = e.message ?: ""
+            if (e is IllegalStateException || msg.contains("closed", ignoreCase = true) || msg.contains("released", ignoreCase = true)) {
+                Log.w(tag, "Recognizer was closed/released concurrently during profile switch, ignoring frame safely: $msg")
+                return emptyList()
+            }
             if (msg.contains("download", ignoreCase = true) ||
                 msg.contains("Waiting for", ignoreCase = true) ||
                 msg.contains("model", ignoreCase = true)
@@ -383,7 +387,8 @@ class OcrEngine {
         if (preprocessed != null) {
             try {
                 val preprocessedImage = InputImage.fromBitmap(preprocessed, 0)
-                detectedBlocks = runOcrPass(activeRecognizer, preprocessedImage)
+                val currentPass3Recognizer = synchronized(recognizerLock) { recognizer } ?: activeRecognizer
+                detectedBlocks = runOcrPass(currentPass3Recognizer, preprocessedImage)
                 if (detectedBlocks.isEmpty()) {
                     if (isCurrentCjk) {
                         val defaultRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
