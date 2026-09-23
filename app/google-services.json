@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "100000000000",
-    "project_id": "miku-translator-perf",
-    "storage_bucket": "miku-translator-perf.appspot.com"
+    "project_number": "849926339560",
+    "project_id": "miku-ai-98f7c",
+    "storage_bucket": "miku-ai-98f7c.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:100000000000:android:abcdef1234567890abcdef",
+        "mobilesdk_app_id": "1:849926339560:android:937c99881838f52425825d",
         "android_client_info": {
           "package_name": "com.antigravity.translator"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyFakeKeyForBuildValidation12345678"
+          "current_key": "AIzaSyC8aVOr9MmNPouJKN8e3gQyRkTY4WudAQY"
         }
       ],
       "services": {
